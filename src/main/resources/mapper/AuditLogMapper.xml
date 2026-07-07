@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.expense.repository.AuditLogMapper">
+
+    <resultMap id="AuditLogResponseResultMap" type="com.example.expense.dto.response.AuditLogResponse">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="userName" column="user_name"/>
+        <result property="action" column="action"/>
+        <result property="targetType" column="target_type"/>
+        <result property="targetId" column="target_id"/>
+        <result property="detail" column="detail"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="SearchWhere">
+        <where>
+            <if test="condition.userId != null">
+                AND al.user_id = #{condition.userId}
+            </if>
+            <if test="condition.action != null and condition.action != ''">
+                AND al.action = #{condition.action}
+            </if>
+            <if test="condition.targetType != null and condition.targetType != ''">
+                AND al.target_type = #{condition.targetType}
+            </if>
+            <if test="condition.createdDateFrom != null">
+                AND al.created_at &gt;= #{condition.createdDateFrom}
+            </if>
+            <if test="condition.createdDateTo != null">
+                AND al.created_at &lt; #{condition.createdDateToExclusive}
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insert" parameterType="com.example.expense.entity.AuditLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO audit_logs (
+            user_id,
+            action,
+            target_type,
+            target_id,
+            detail
+        ) VALUES (
+            #{userId},
+            #{action},
+            #{targetType},
+            #{targetId},
+            #{detail}
+        )
+    </insert>
+
+    <select id="search" resultMap="AuditLogResponseResultMap">
+        SELECT
+            al.id,
+            al.user_id,
+            u.name AS user_name,
+            al.action,
+            al.target_type,
+            al.target_id,
+            al.detail,
+            al.created_at
+        FROM audit_logs al
+        INNER JOIN users u ON u.id = al.user_id
+        <include refid="SearchWhere"/>
+        ORDER BY al.created_at DESC, al.id DESC
+        LIMIT #{condition.size}
+        OFFSET #{condition.offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(*)
+        FROM audit_logs al
+        INNER JOIN users u ON u.id = al.user_id
+        <include refid="SearchWhere"/>
+    </select>
+</mapper>

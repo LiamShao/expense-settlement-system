@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.expense.repository.ExpenseItemMapper">
+
+    <resultMap id="ExpenseItemResultMap" type="com.example.expense.entity.ExpenseItem">
+        <id property="id" column="id"/>
+        <result property="expenseApplicationId" column="expense_application_id"/>
+        <result property="expenseDate" column="expense_date"/>
+        <result property="category" column="category" javaType="com.example.expense.common.enums.ExpenseCategory"/>
+        <result property="amount" column="amount"/>
+        <result property="description" column="description"/>
+        <result property="receiptObjectKey" column="receipt_object_key"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findByApplicationId" resultMap="ExpenseItemResultMap">
+        SELECT
+            id,
+            expense_application_id,
+            expense_date,
+            category,
+            amount,
+            description,
+            receipt_object_key,
+            created_at,
+            updated_at
+        FROM expense_items
+        WHERE expense_application_id = #{expenseApplicationId}
+        ORDER BY expense_date ASC, id ASC
+    </select>
+
+    <insert id="insert" parameterType="com.example.expense.entity.ExpenseItem" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO expense_items (
+            expense_application_id,
+            expense_date,
+            category,
+            amount,
+            description,
+            receipt_object_key
+        ) VALUES (
+            #{expenseApplicationId},
+            #{expenseDate},
+            #{category},
+            #{amount},
+            #{description},
+            #{receiptObjectKey}
+        )
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT INTO expense_items (
+            expense_application_id,
+            expense_date,
+            category,
+            amount,
+            description,
+            receipt_object_key
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (
+                #{item.expenseApplicationId},
+                #{item.expenseDate},
+                #{item.category},
+                #{item.amount},
+                #{item.description},
+                #{item.receiptObjectKey}
+            )
+        </foreach>
+    </insert>
+
+    <delete id="deleteByApplicationId">
+        DELETE FROM expense_items
+        WHERE expense_application_id = #{expenseApplicationId}
+    </delete>
+</mapper>

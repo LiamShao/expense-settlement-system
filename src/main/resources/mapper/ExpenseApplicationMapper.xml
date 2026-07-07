@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.expense.repository.ExpenseApplicationMapper">
+
+    <resultMap id="ExpenseApplicationResultMap" type="com.example.expense.entity.ExpenseApplication">
+        <id property="id" column="id"/>
+        <result property="applicantId" column="applicant_id"/>
+        <result property="title" column="title"/>
+        <result property="status" column="status" javaType="com.example.expense.common.enums.ExpenseStatus"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="submittedAt" column="submitted_at"/>
+        <result property="approvedAt" column="approved_at"/>
+        <result property="approvedBy" column="approved_by"/>
+        <result property="returnedAt" column="returned_at"/>
+        <result property="returnReason" column="return_reason"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="ExpenseApplicationSummaryResultMap" type="com.example.expense.dto.response.ExpenseApplicationSummaryResponse">
+        <id property="id" column="id"/>
+        <result property="applicantId" column="applicant_id"/>
+        <result property="applicantName" column="applicant_name"/>
+        <result property="title" column="title"/>
+        <result property="status" column="status" javaType="com.example.expense.common.enums.ExpenseStatus"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="submittedAt" column="submitted_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="ExpenseApplicationColumns">
+        id,
+        applicant_id,
+        title,
+        status,
+        total_amount,
+        submitted_at,
+        approved_at,
+        approved_by,
+        returned_at,
+        return_reason,
+        created_at,
+        updated_at
+    </sql>
+
+    <sql id="SearchWhere">
+        <where>
+            <if test="condition.applicantId != null">
+                AND ea.applicant_id = #{condition.applicantId}
+            </if>
+            <if test="condition.status != null">
+                AND ea.status = #{condition.status}
+            </if>
+            <if test="condition.keyword != null and condition.keyword != ''">
+                AND ea.title ILIKE CONCAT('%', #{condition.keyword}, '%')
+            </if>
+            <if test="condition.expenseDateFrom != null">
+                AND EXISTS (
+                    SELECT 1
+                    FROM expense_items ei_from
+                    WHERE ei_from.expense_application_id = ea.id
+                      AND ei_from.expense_date &gt;= #{condition.expenseDateFrom}
+                )
+            </if>
+            <if test="condition.expenseDateTo != null">
+                AND EXISTS (
+                    SELECT 1
+                    FROM expense_items ei_to
+                    WHERE ei_to.expense_application_id = ea.id
+                      AND ei_to.expense_date &lt;= #{condition.expenseDateTo}
+                )
+            </if>
+        </where>
+    </sql>
+
+    <select id="findById" resultMap="ExpenseApplicationResultMap">
+        SELECT
+            <include refid="ExpenseApplicationColumns"/>
+        FROM expense_applications
+        WHERE id = #{id}
+    </select>
+
+    <select id="search" resultMap="ExpenseApplicationSummaryResultMap">
+        SELECT
+            ea.id,
+            ea.applicant_id,
+            u.name AS applicant_name,
+            ea.title,
+            ea.status,
+            ea.total_amount,
+            ea.submitted_at,
+            ea.created_at,
+            ea.updated_at
+        FROM expense_applications ea
+        INNER JOIN users u ON u.id = ea.applicant_id
+        <include refid="SearchWhere"/>
+        ORDER BY ea.created_at DESC, ea.id DESC
+        LIMIT #{condition.size}
+        OFFSET #{condition.offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(*)
+        FROM expense_applications ea
+        INNER JOIN users u ON u.id = ea.applicant_id
+        <include refid="SearchWhere"/>
+    </select>
+
+    <insert id="insert" parameterType="com.example.expense.entity.ExpenseApplication" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO expense_applications (
+            applicant_id,
+            title,
+            status,
+            total_amount
+        ) VALUES (
+            #{applicantId},
+            #{title},
+            #{status},
+            #{totalAmount}
+        )
+    </insert>
+
+    <update id="updateDraft" parameterType="com.example.expense.entity.ExpenseApplication">
+        UPDATE expense_applications
+        SET title = #{title},
+            total_amount = #{totalAmount},
+            return_reason = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateTotalAmount">
+        UPDATE expense_applications
+        SET total_amount = #{totalAmount},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatusToSubmitted">
+        UPDATE expense_applications
+        SET status = 'SUBMITTED',
+            submitted_at = CURRENT_TIMESTAMP,
+            returned_at = NULL,
+            return_reason = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatusToApproved">
+        UPDATE expense_applications
+        SET status = 'APPROVED',
+            approved_at = CURRENT_TIMESTAMP,
+            approved_by = #{approverId},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatusToReturned">
+        UPDATE expense_applications
+        SET status = 'RETURNED',
+            returned_at = CURRENT_TIMESTAMP,
+            return_reason = #{returnReason},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM expense_applications
+        WHERE id = #{id}
+    </delete>
+
+    <select id="existsByIdAndStatus" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM expense_applications
+            WHERE id = #{id}
+              AND status = #{status}
+        )
+    </select>
+</mapper>

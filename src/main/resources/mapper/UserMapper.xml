@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.expense.repository.UserMapper">
+
+    <resultMap id="UserResultMap" type="com.example.expense.entity.User">
+        <id property="id" column="id"/>
+        <result property="employeeCode" column="employee_code"/>
+        <result property="name" column="name"/>
+        <result property="email" column="email"/>
+        <result property="password" column="password"/>
+        <result property="role" column="role" javaType="com.example.expense.common.enums.RoleType"/>
+        <result property="department" column="department"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="UserColumns">
+        id,
+        employee_code,
+        name,
+        email,
+        password,
+        role,
+        department,
+        enabled,
+        created_at,
+        updated_at
+    </sql>
+
+    <select id="findById" resultMap="UserResultMap">
+        SELECT
+            <include refid="UserColumns"/>
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByEmail" resultMap="UserResultMap">
+        SELECT
+            <include refid="UserColumns"/>
+        FROM users
+        WHERE email = #{email}
+    </select>
+
+    <select id="findAllEnabled" resultMap="UserResultMap">
+        SELECT
+            <include refid="UserColumns"/>
+        FROM users
+        WHERE enabled = TRUE
+        ORDER BY employee_code ASC
+    </select>
+</mapper>
