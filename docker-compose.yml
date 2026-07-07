@@ -1,0 +1,45 @@
+services:
+  java-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: expense-java-dev
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - gradle-cache:/home/gradle/.gradle
+    environment:
+      TZ: Asia/Tokyo
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/expense_db
+      SPRING_DATASOURCE_USERNAME: expense_user
+      SPRING_DATASOURCE_PASSWORD: expense_password
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    stdin_open: true
+    tty: true
+    command: bash
+
+  postgres:
+    image: postgres:16
+    container_name: expense-postgres
+    environment:
+      POSTGRES_DB: expense_db
+      POSTGRES_USER: expense_user
+      POSTGRES_PASSWORD: expense_password
+      TZ: Asia/Tokyo
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expense_user -d expense_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  gradle-cache:
+  postgres-data:

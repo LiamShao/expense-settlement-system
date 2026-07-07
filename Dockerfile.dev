@@ -1,0 +1,22 @@
+FROM gradle:8.10.2-jdk17-jammy
+
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        make \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Tokyo
+ENV JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8"
+
+WORKDIR /workspace
+
+USER gradle
+
+CMD ["bash"]
