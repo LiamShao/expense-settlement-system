@@ -309,16 +309,6 @@ docker exec expense-java-dev ./gradlew --stop
 - React / TypeScript フロントエンド
 - AWS デプロイ手順の具体化
 
-## 面接で説明するポイント
-
-- TypeScript / Node.js のバックエンド経験を活かし、Java / Spring Boot のレイヤードアーキテクチャに置き換えて実装していること
-- MyBatis を採用し、SQL を明示的に管理していること
-- Flyway により DB schema の変更履歴を管理していること
-- Entity と DTO を分離し、DB 構造と API 入出力を分けていること
-- Spring Security の `UserDetailsService` を実装し、DB ユーザーによる認証を行っていること
-- 経費精算という日本企業で説明しやすい業務テーマを選んでいること
-- 後続で権限、状態遷移、テスト、AWS 構成、日式ドキュメントまで整備する計画であること
-
 ## 開発フェーズ
 
 ```text
