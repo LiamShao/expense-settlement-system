@@ -126,7 +126,12 @@
     <update id="updateDraft" parameterType="com.example.expense.entity.ExpenseApplication">
         UPDATE expense_applications
         SET title = #{title},
+            status = 'DRAFT',
             total_amount = #{totalAmount},
+            submitted_at = NULL,
+            approved_at = NULL,
+            approved_by = NULL,
+            returned_at = NULL,
             return_reason = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{id}

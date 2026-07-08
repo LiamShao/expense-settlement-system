@@ -13,3 +13,5 @@ target/
 .env
 .env.*
 !.env.example
+
+AGENT.md
