@@ -148,6 +148,8 @@
         UPDATE expense_applications
         SET status = 'SUBMITTED',
             submitted_at = CURRENT_TIMESTAMP,
+            approved_at = NULL,
+            approved_by = NULL,
             returned_at = NULL,
             return_reason = NULL,
             updated_at = CURRENT_TIMESTAMP
@@ -166,6 +168,8 @@
     <update id="updateStatusToReturned">
         UPDATE expense_applications
         SET status = 'RETURNED',
+            approved_at = NULL,
+            approved_by = #{approverId},
             returned_at = CURRENT_TIMESTAMP,
             return_reason = #{returnReason},
             updated_at = CURRENT_TIMESTAMP

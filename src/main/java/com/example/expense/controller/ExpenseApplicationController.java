@@ -4,6 +4,7 @@ import com.example.expense.common.ApiResponse;
 import com.example.expense.common.PageResponse;
 import com.example.expense.dto.request.CreateExpenseApplicationRequest;
 import com.example.expense.dto.request.ExpenseApplicationSearchRequest;
+import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
 import com.example.expense.dto.request.UpdateExpenseApplicationRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
@@ -71,5 +72,30 @@ public class ExpenseApplicationController {
     ) {
         expenseApplicationService.delete(id, securityUser);
         return ApiResponse.success(null, "経費申請を削除しました。");
+    }
+
+    @PostMapping("/{id}/submit")
+    public ApiResponse<ExpenseApplicationDetailResponse> submit(
+            @PathVariable Long id,
+            @AuthenticationPrincipal SecurityUser securityUser
+    ) {
+        return ApiResponse.success(expenseApplicationService.submit(id, securityUser), "経費申請を申請しました。");
+    }
+
+    @PostMapping("/{id}/approve")
+    public ApiResponse<ExpenseApplicationDetailResponse> approve(
+            @PathVariable Long id,
+            @AuthenticationPrincipal SecurityUser securityUser
+    ) {
+        return ApiResponse.success(expenseApplicationService.approve(id, securityUser), "経費申請を承認しました。");
+    }
+
+    @PostMapping("/{id}/return")
+    public ApiResponse<ExpenseApplicationDetailResponse> returnApplication(
+            @PathVariable Long id,
+            @Valid @RequestBody ReturnExpenseApplicationRequest request,
+            @AuthenticationPrincipal SecurityUser securityUser
+    ) {
+        return ApiResponse.success(expenseApplicationService.returnApplication(id, request, securityUser), "経費申請を差戻しました。");
     }
 }

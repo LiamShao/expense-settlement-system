@@ -2,9 +2,11 @@ package com.example.expense.service;
 
 import com.example.expense.common.PageResponse;
 import com.example.expense.common.enums.ExpenseStatus;
+import com.example.expense.common.enums.RoleType;
 import com.example.expense.dto.request.CreateExpenseApplicationRequest;
 import com.example.expense.dto.request.ExpenseApplicationSearchRequest;
 import com.example.expense.dto.request.ExpenseItemRequest;
+import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
 import com.example.expense.dto.request.UpdateExpenseApplicationRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
@@ -111,6 +113,46 @@ public class ExpenseApplicationService {
         expenseApplicationMapper.deleteById(application.getId());
     }
 
+    @Transactional
+    public ExpenseApplicationDetailResponse submit(Long id, SecurityUser securityUser) {
+        ExpenseApplication application = findApplication(id);
+        assertOwner(application, securityUser);
+        assertSubmittable(application);
+
+        expenseApplicationMapper.updateStatusToSubmitted(application.getId());
+        return toDetailResponse(findApplication(application.getId()));
+    }
+
+    @Transactional
+    public ExpenseApplicationDetailResponse approve(Long id, SecurityUser securityUser) {
+        ExpenseApplication application = findApplication(id);
+        assertReviewer(securityUser);
+        assertReviewable(application);
+        assertNotOwnApplication(application, securityUser);
+
+        expenseApplicationMapper.updateStatusToApproved(application.getId(), securityUser.getId());
+        return toDetailResponse(findApplication(application.getId()));
+    }
+
+    @Transactional
+    public ExpenseApplicationDetailResponse returnApplication(
+            Long id,
+            ReturnExpenseApplicationRequest request,
+            SecurityUser securityUser
+    ) {
+        ExpenseApplication application = findApplication(id);
+        assertReviewer(securityUser);
+        assertReviewable(application);
+        assertNotOwnApplication(application, securityUser);
+
+        expenseApplicationMapper.updateStatusToReturned(
+                application.getId(),
+                securityUser.getId(),
+                request.getReturnReason()
+        );
+        return toDetailResponse(findApplication(application.getId()));
+    }
+
     private ExpenseApplication findApplication(Long id) {
         ExpenseApplication application = expenseApplicationMapper.findById(id);
         if (application == null) {
@@ -128,6 +170,31 @@ public class ExpenseApplicationService {
     private void assertEditable(ExpenseApplication application) {
         if (!application.getStatus().isEditableByApplicant()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "下書きまたは差戻しの経費申請のみ編集できます。");
+        }
+    }
+
+    private void assertSubmittable(ExpenseApplication application) {
+        if (!application.getStatus().isEditableByApplicant()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "下書きまたは差戻しの経費申請のみ申請できます。");
+        }
+    }
+
+    private void assertReviewer(SecurityUser securityUser) {
+        RoleType role = securityUser.getUser().getRole();
+        if (role != RoleType.APPROVER && role != RoleType.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "承認者または管理者のみ承認・差戻しできます。");
+        }
+    }
+
+    private void assertReviewable(ExpenseApplication application) {
+        if (!application.getStatus().isReviewable()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "申請中の経費申請のみ承認・差戻しできます。");
+        }
+    }
+
+    private void assertNotOwnApplication(ExpenseApplication application, SecurityUser securityUser) {
+        if (Objects.equals(application.getApplicantId(), securityUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "自分の経費申請は承認・差戻しできません。");
         }
     }
 

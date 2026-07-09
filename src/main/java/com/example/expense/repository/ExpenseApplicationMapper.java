@@ -29,7 +29,11 @@ public interface ExpenseApplicationMapper {
 
     int updateStatusToApproved(@Param("id") Long id, @Param("approverId") Long approverId);
 
-    int updateStatusToReturned(@Param("id") Long id, @Param("returnReason") String returnReason);
+    int updateStatusToReturned(
+            @Param("id") Long id,
+            @Param("approverId") Long approverId,
+            @Param("returnReason") String returnReason
+    );
 
     int deleteById(@Param("id") Long id);
 
