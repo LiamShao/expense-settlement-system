@@ -6,6 +6,7 @@ target/
 
 .idea/
 .vscode/
+.devcontainer/
 *.iml
 
 .DS_Store
