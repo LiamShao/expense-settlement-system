@@ -34,15 +34,18 @@ public class ExpenseApplicationService {
     private final ExpenseApplicationMapper expenseApplicationMapper;
     private final ExpenseItemMapper expenseItemMapper;
     private final UserMapper userMapper;
+    private final AuditLogService auditLogService;
 
     public ExpenseApplicationService(
             ExpenseApplicationMapper expenseApplicationMapper,
             ExpenseItemMapper expenseItemMapper,
-            UserMapper userMapper
+            UserMapper userMapper,
+            AuditLogService auditLogService
     ) {
         this.expenseApplicationMapper = expenseApplicationMapper;
         this.expenseItemMapper = expenseItemMapper;
         this.userMapper = userMapper;
+        this.auditLogService = auditLogService;
     }
 
     public PageResponse<ExpenseApplicationSummaryResponse> search(
@@ -50,11 +53,18 @@ public class ExpenseApplicationService {
             SecurityUser securityUser
     ) {
         ExpenseApplicationSearchRequest condition = copySearchCondition(request);
+        if (isAdmin(securityUser)) {
+            return searchByCondition(condition);
+        }
         if (condition.getApplicantId() != null && !Objects.equals(condition.getApplicantId(), securityUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "他のユーザーの経費申請は参照できません。");
         }
         condition.setApplicantId(securityUser.getId());
 
+        return searchByCondition(condition);
+    }
+
+    private PageResponse<ExpenseApplicationSummaryResponse> searchByCondition(ExpenseApplicationSearchRequest condition) {
         List<ExpenseApplicationSummaryResponse> content = expenseApplicationMapper.search(condition);
         content.forEach(this::setStatusName);
         long totalElements = expenseApplicationMapper.countSearch(condition);
@@ -63,7 +73,7 @@ public class ExpenseApplicationService {
 
     public ExpenseApplicationDetailResponse getById(Long id, SecurityUser securityUser) {
         ExpenseApplication application = findApplication(id);
-        assertOwner(application, securityUser);
+        assertOwnerOrAdmin(application, securityUser);
         return toDetailResponse(application);
     }
 
@@ -80,6 +90,13 @@ public class ExpenseApplicationService {
 
         expenseApplicationMapper.insert(application);
         expenseItemMapper.insertBatch(toExpenseItems(application.getId(), request.getItems()));
+        auditLogService.record(
+                securityUser,
+                AuditLogService.ACTION_EXPENSE_APPLICATION_CREATE,
+                AuditLogService.TARGET_EXPENSE_APPLICATION,
+                application.getId(),
+                "経費申請を作成しました。"
+        );
 
         return getById(application.getId(), securityUser);
     }
@@ -100,6 +117,13 @@ public class ExpenseApplicationService {
 
         expenseItemMapper.deleteByApplicationId(application.getId());
         expenseItemMapper.insertBatch(toExpenseItems(application.getId(), request.getItems()));
+        auditLogService.record(
+                securityUser,
+                AuditLogService.ACTION_EXPENSE_APPLICATION_UPDATE,
+                AuditLogService.TARGET_EXPENSE_APPLICATION,
+                application.getId(),
+                "経費申請を更新しました。"
+        );
 
         return getById(application.getId(), securityUser);
     }
@@ -111,6 +135,13 @@ public class ExpenseApplicationService {
         assertEditable(application);
 
         expenseApplicationMapper.deleteById(application.getId());
+        auditLogService.record(
+                securityUser,
+                AuditLogService.ACTION_EXPENSE_APPLICATION_DELETE,
+                AuditLogService.TARGET_EXPENSE_APPLICATION,
+                application.getId(),
+                "経費申請を削除しました。"
+        );
     }
 
     @Transactional
@@ -120,6 +151,13 @@ public class ExpenseApplicationService {
         assertSubmittable(application);
 
         expenseApplicationMapper.updateStatusToSubmitted(application.getId());
+        auditLogService.record(
+                securityUser,
+                AuditLogService.ACTION_EXPENSE_APPLICATION_SUBMIT,
+                AuditLogService.TARGET_EXPENSE_APPLICATION,
+                application.getId(),
+                "経費申請を申請しました。"
+        );
         return toDetailResponse(findApplication(application.getId()));
     }
 
@@ -131,6 +169,13 @@ public class ExpenseApplicationService {
         assertNotOwnApplication(application, securityUser);
 
         expenseApplicationMapper.updateStatusToApproved(application.getId(), securityUser.getId());
+        auditLogService.record(
+                securityUser,
+                AuditLogService.ACTION_EXPENSE_APPLICATION_APPROVE,
+                AuditLogService.TARGET_EXPENSE_APPLICATION,
+                application.getId(),
+                "経費申請を承認しました。"
+        );
         return toDetailResponse(findApplication(application.getId()));
     }
 
@@ -150,6 +195,13 @@ public class ExpenseApplicationService {
                 securityUser.getId(),
                 request.getReturnReason()
         );
+        auditLogService.record(
+                securityUser,
+                AuditLogService.ACTION_EXPENSE_APPLICATION_RETURN,
+                AuditLogService.TARGET_EXPENSE_APPLICATION,
+                application.getId(),
+                request.getReturnReason()
+        );
         return toDetailResponse(findApplication(application.getId()));
     }
 
@@ -165,6 +217,16 @@ public class ExpenseApplicationService {
         if (!Objects.equals(application.getApplicantId(), securityUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "他のユーザーの経費申請は操作できません。");
         }
+    }
+
+    private void assertOwnerOrAdmin(ExpenseApplication application, SecurityUser securityUser) {
+        if (!isAdmin(securityUser)) {
+            assertOwner(application, securityUser);
+        }
+    }
+
+    private boolean isAdmin(SecurityUser securityUser) {
+        return securityUser.getUser().getRole() == RoleType.ADMIN;
     }
 
     private void assertEditable(ExpenseApplication application) {

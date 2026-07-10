@@ -2,8 +2,10 @@ package com.example.expense.service;
 
 import com.example.expense.common.enums.ExpenseStatus;
 import com.example.expense.common.enums.RoleType;
+import com.example.expense.dto.request.ExpenseApplicationSearchRequest;
 import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
+import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
 import com.example.expense.entity.ExpenseApplication;
 import com.example.expense.entity.User;
 import com.example.expense.repository.ExpenseApplicationMapper;
@@ -23,6 +25,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,11 +43,14 @@ class ExpenseApplicationServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     private ExpenseApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExpenseApplicationService(expenseApplicationMapper, expenseItemMapper, userMapper);
+        service = new ExpenseApplicationService(expenseApplicationMapper, expenseItemMapper, userMapper, auditLogService);
     }
 
     @Test
@@ -60,6 +67,13 @@ class ExpenseApplicationServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(ExpenseStatus.SUBMITTED);
         verify(expenseApplicationMapper).updateStatusToSubmitted(10L);
+        verify(auditLogService).record(
+                any(SecurityUser.class),
+                eq(AuditLogService.ACTION_EXPENSE_APPLICATION_SUBMIT),
+                eq(AuditLogService.TARGET_EXPENSE_APPLICATION),
+                eq(10L),
+                eq("経費申請を申請しました。")
+        );
     }
 
     @Test
@@ -80,6 +94,40 @@ class ExpenseApplicationServiceTest {
         assertThat(response.getStatus()).isEqualTo(ExpenseStatus.APPROVED);
         assertThat(response.getApprover().getId()).isEqualTo(2L);
         verify(expenseApplicationMapper).updateStatusToApproved(10L, 2L);
+    }
+
+    @Test
+    void search_正常系_ADMINは全件検索できる() {
+        User admin = user(3L, RoleType.ADMIN);
+        ExpenseApplicationSummaryResponse summary = new ExpenseApplicationSummaryResponse();
+        summary.setId(10L);
+        summary.setApplicantId(1L);
+        summary.setStatus(ExpenseStatus.SUBMITTED);
+
+        when(expenseApplicationMapper.search(any())).thenReturn(List.of(summary));
+        when(expenseApplicationMapper.countSearch(any())).thenReturn(1L);
+
+        var response = service.search(new ExpenseApplicationSearchRequest(), new SecurityUser(admin));
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getStatusName()).isEqualTo(ExpenseStatus.SUBMITTED.getDisplayName());
+        verify(expenseApplicationMapper).search(org.mockito.ArgumentMatchers.argThat(condition -> condition.getApplicantId() == null));
+    }
+
+    @Test
+    void getById_正常系_ADMINは他人の申請詳細を参照できる() {
+        ExpenseApplication application = application(10L, 1L, ExpenseStatus.SUBMITTED);
+        User applicant = user(1L, RoleType.USER);
+        User admin = user(3L, RoleType.ADMIN);
+
+        when(expenseApplicationMapper.findById(10L)).thenReturn(application);
+        when(userMapper.findById(1L)).thenReturn(applicant);
+        when(expenseItemMapper.findByApplicationId(10L)).thenReturn(List.of());
+
+        ExpenseApplicationDetailResponse response = service.getById(10L, new SecurityUser(admin));
+
+        assertThat(response.getId()).isEqualTo(10L);
+        assertThat(response.getApplicant().getId()).isEqualTo(1L);
     }
 
     @Test

@@ -32,12 +32,12 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 5 | 経費申請 CRUD | 完了 |
 | Phase 6 | 申請・承認・差戻し workflow | 完了 |
 | Phase 6.5 | 現状仕様書整理 | 完了 |
+| Phase 7 | ADMIN 全件参照 / 監査ログ | 完了 |
 
 ## 3. 後続フェーズ
 
 | Phase | 内容 | 文書先行タスク |
 |---|---|---|
-| Phase 7 | ADMIN 全件参照 / 監査ログ | 要件、権限マトリクス、API仕様、DB利用方針、テスト仕様を先に更新する。 |
 | Phase 8 | Global Exception Handler | エラーレスポンス仕様、例外マッピング表、Controller テスト仕様を先に作成する。 |
 | Phase 9 | OpenAPI / Swagger 詳細化 | 既存の `openapi.yaml` と実装を突合し、Swagger 表示、契約校正、Mock 利用を整備する。 |
 | Phase 10 | テストコード拡充 | 単体テスト仕様書の未実装ケースを実装する。 |
@@ -48,9 +48,8 @@ API / DB / 権限 / 状態遷移仕様更新
 
 ## 4. 次に実施する作業
 
-Phase 7 に入る前に、以下を決める。
+Phase 8 に入る前に、以下を決める。
 
-- ADMIN は全件参照のみ可能か、承認・差戻しも可能なままにするか。
-- 監査ログ対象操作はどこまで含めるか。
-- 監査ログの `action` 命名規則をどうするか。
-- 監査ログ検索 API を ADMIN のみにするか。
+- エラーレスポンスの JSON 形式をどうするか。
+- `ResponseStatusException`、Validation error、認証・認可エラーのマッピングをどうするか。
+- Controller テストをどの範囲まで追加するか。

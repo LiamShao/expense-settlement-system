@@ -66,13 +66,13 @@ Request:
 | Method | GET |
 | Path | `/api/expense-applications` |
 | 認証 | 必要 |
-| 概要 | 経費申請を検索する。USER は自分の申請のみ取得できる。 |
+| 概要 | 経費申請を検索する。USER / APPROVER は自分の申請のみ取得できる。ADMIN は全ユーザーの申請を取得できる。 |
 
 Query:
 
 | 項目 | 型 | 必須 | 制約・概要 |
 |---|---|---|---|
-| `applicantId` | number | NO | USER は自分以外を指定不可。現実装ではログインユーザー ID に上書きされる。 |
+| `applicantId` | number | NO | USER / APPROVER は自分以外を指定不可。ADMIN は指定なしで全件、指定ありで対象ユーザーのみ検索する。 |
 | `status` | string | NO | `DRAFT` / `SUBMITTED` / `APPROVED` / `RETURNED` |
 | `keyword` | string | NO | max 200。タイトル部分一致。 |
 | `expenseDateFrom` | date | NO | 明細利用日 From |
@@ -87,7 +87,7 @@ Query:
 | Method | GET |
 | Path | `/api/expense-applications/{id}` |
 | 認証 | 必要 |
-| 概要 | 経費申請ヘッダと明細を取得する。USER は自分の申請のみ取得できる。 |
+| 概要 | 経費申請ヘッダと明細を取得する。USER / APPROVER は自分の申請のみ取得できる。ADMIN は全ユーザーの申請を取得できる。 |
 
 ### 3.3 作成
 
@@ -173,7 +173,41 @@ Request:
 - 自分の申請は差戻しできない。
 - `SUBMITTED` 以外は差戻しできない。
 
-## 4. ヘルスチェック
+## 4. 監査ログ API
+
+### 4.1 監査ログ検索
+
+| 項目 | 内容 |
+|---|---|
+| Method | GET |
+| Path | `/api/audit-logs` |
+| 認証 | 必要 |
+| 概要 | 監査ログを検索する。ADMIN のみ利用可能。 |
+
+Query:
+
+| 項目 | 型 | 必須 | 制約・概要 |
+|---|---|---|---|
+| `userId` | number | NO | 操作ユーザー ID |
+| `action` | string | NO | max 100。操作種別完全一致。 |
+| `targetType` | string | NO | max 100。対象種別完全一致。 |
+| `createdDateFrom` | date | NO | ログ作成日 From |
+| `createdDateTo` | date | NO | ログ作成日 To |
+| `page` | number | NO | min 0, default 0 |
+| `size` | number | NO | min 1, max 100, default 20 |
+
+監査ログ対象操作:
+
+| action | targetType | 概要 |
+|---|---|---|
+| `EXPENSE_APPLICATION_CREATE` | `EXPENSE_APPLICATION` | 経費申請作成 |
+| `EXPENSE_APPLICATION_UPDATE` | `EXPENSE_APPLICATION` | 経費申請更新 |
+| `EXPENSE_APPLICATION_DELETE` | `EXPENSE_APPLICATION` | 経費申請削除 |
+| `EXPENSE_APPLICATION_SUBMIT` | `EXPENSE_APPLICATION` | 経費申請申請 |
+| `EXPENSE_APPLICATION_APPROVE` | `EXPENSE_APPLICATION` | 経費申請承認 |
+| `EXPENSE_APPLICATION_RETURN` | `EXPENSE_APPLICATION` | 経費申請差戻し |
+
+## 5. ヘルスチェック
 
 | 項目 | 内容 |
 |---|---|
