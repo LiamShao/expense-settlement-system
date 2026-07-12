@@ -17,6 +17,8 @@
 | 07 | [単体テスト仕様書](07_unit_test_spec.md) | Service 層を中心とした単体テスト観点を定義する。 |
 | 08 | [テストエビデンス](08_test_evidence.md) | 実行したテスト結果と確認内容を記録する。 |
 | 09 | [開発フェーズ計画](09_phase_plan.md) | 後続開発を文書先行で進めるための計画を定義する。 |
+| 10 | [エラーハンドリング設計書](10_error_handling.md) | 共通エラーレスポンスと例外マッピングを定義する。 |
+| 11 | [OpenAPI / Swagger / Mock 利用手順](11_openapi_mock.md) | 正式契約、Swagger UI、Mock Server の利用方法を定義する。 |
 | API | [OpenAPI定義](openapi.yaml) | 実装済み API の機械可読な契約を定義する。 |
 
 ## 文書更新ルール

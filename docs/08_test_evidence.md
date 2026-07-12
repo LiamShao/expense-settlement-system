@@ -4,7 +4,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| 実行日 | 2026-07-10 |
+| 実行日 | 2026-07-12 |
 | 実行環境 | Docker Compose |
 | Java | Java 17 |
 | Gradle | Gradle 8.10.2 |
@@ -20,6 +20,7 @@ docker compose run --rm java-dev ./gradlew test
 
 ```text
 BUILD SUCCESSFUL
+18 tests, 0 failures, 0 errors
 ```
 
 ## 4. 確認済みテスト
@@ -36,15 +37,35 @@ BUILD SUCCESSFUL
 | UT-AUD-002 | `search_正常系_ADMINは監査ログを検索できる` | OK | ADMIN の監査ログ検索を確認。 |
 | UT-AUD-003 | `search_異常系_USERは監査ログを検索できない` | OK | USER の監査ログ検索禁止を確認。 |
 | APP-001 | `main_正常系_アプリケーションクラスを参照できる` | OK | アプリケーションクラス参照を確認。 |
+| CT-ERR-001 | `create_異常系_Validationエラーを統一形式で返す` | OK | 400、エラーコード、項目詳細を確認。 |
+| CT-ERR-002 | `create_異常系_不正なJSONを統一形式で返す` | OK | 不正 JSON の共通レスポンスを確認。 |
+| CT-ERR-003 | `getById_異常系_ResponseStatusExceptionを統一形式で返す` | OK | Service の status と業務メッセージ維持を確認。 |
+| CT-ERR-004 | `search_異常系_未認証は統一形式で返す` | OK | Security Filter の 401 JSON を確認。 |
+| CT-ERR-005 | `handle_異常系_権限不足を統一形式で返す` | OK | Security の 403 JSON を確認。 |
+| CT-ERR-006 | `getById_異常系_未処理例外の詳細を公開しない` | OK | 500 response に内部メッセージを含めないことを確認。 |
+| CT-API-001 | `openApi_正常系_正式YAMLが静的Resourceへコピーされる` | OK | 正式 YAML と build artifact が一致することを確認。 |
+| CT-API-002 | `openApi_正常系_実装Endpointと共通契約を定義する` | OK | 全 path、Basic Auth、共通エラー schema を確認。 |
+| CT-API-003 | `openApi_正常系_operationIdと認証と共通500Responseを定義する` | OK | operationId の一意性、認証、500 response を確認。 |
 
 ## 5. 未実施・後続確認
 
 | 項目 | 理由 |
 |---|---|
-| Controller API テスト | MockMvc テスト未作成のため。 |
+| Controller API テストの拡充 | Phase 8 の異常系は実施済み。正常系と全 endpoint は Phase 10 / 11 で追加する。 |
 | DB integration test | Testcontainers または実 DB を利用したテスト未作成のため。 |
-| Global Exception Handler のレスポンス形式確認 | 機能未実装のため。 |
 
-## 6. 補足
+## 6. Phase 9 実行時確認
+
+| 確認項目 | 結果 |
+|---|---|
+| `GET /openapi.yaml` | 200 OK |
+| `GET /swagger-ui.html` | 200 OK |
+| Swagger config の契約 URL | `/openapi.yaml` |
+| Docker Compose Mock profile 構文 | OK |
+| Prism Mock Server 起動 | 12 operations を認識して起動 |
+| Mock 未認証リクエスト | 401 Unauthorized |
+| Mock Basic Auth リクエスト | 200 OK |
+
+## 7. 補足
 
 本エビデンスは自動テスト実行結果の要約である。SIer 形式の詳細エビデンスとして提出する場合は、対象テスト、入力値、期待値、実行結果、ログまたはスクリーンショットをケース単位で追加する。

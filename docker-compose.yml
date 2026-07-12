@@ -40,6 +40,16 @@ services:
       timeout: 5s
       retries: 5
 
+  api-mock:
+    image: stoplight/prism:4
+    profiles:
+      - mock
+    command: mock -h 0.0.0.0 /tmp/openapi.yaml
+    volumes:
+      - ./docs/openapi.yaml:/tmp/openapi.yaml:ro
+    ports:
+      - "4010:4010"
+
 volumes:
   gradle-cache:
   postgres-data:

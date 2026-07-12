@@ -43,3 +43,9 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.named('processResources') {
+    from('docs/openapi.yaml') {
+        into 'static'
+    }
+}

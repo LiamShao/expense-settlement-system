@@ -1,11 +1,15 @@
 openapi: 3.0.3
 info:
   title: Expense Settlement API
-  description: 経費精算システムの実装済み REST API 仕様。
-  version: 0.1.0
+  description: |-
+    日本企業の経費申請・承認フローを想定した REST API。
+    `docs/openapi.yaml` を正式契約とし、Swagger UI と Prism Mock Server が同じ定義を利用する。
+  version: 0.2.0
 servers:
   - url: http://localhost:8080
     description: Local development server
+  - url: http://localhost:4010
+    description: Prism Mock Server
 tags:
   - name: Auth
     description: 認証 API
@@ -41,6 +45,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/auth/me:
     get:
@@ -60,6 +66,8 @@ paths:
                 $ref: '#/components/schemas/UserApiResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/expense-applications:
     get:
@@ -130,6 +138,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     post:
       tags:
@@ -156,6 +166,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/expense-applications/{id}:
     get:
@@ -181,6 +193,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     put:
       tags:
@@ -213,6 +227,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     delete:
       tags:
@@ -239,6 +255,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/expense-applications/{id}/submit:
     post:
@@ -266,6 +284,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/expense-applications/{id}/approve:
     post:
@@ -293,6 +313,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/expense-applications/{id}/return:
     post:
@@ -326,6 +348,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /api/audit-logs:
     get:
@@ -398,6 +422,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /actuator/health:
     get:
@@ -420,6 +446,7 @@ components:
     basicAuth:
       type: http
       scheme: basic
+      description: Seed user の email と password を使用する HTTP Basic 認証。
 
   parameters:
     ExpenseApplicationId:
@@ -435,14 +462,123 @@ components:
   responses:
     BadRequest:
       description: リクエスト不正または業務ルール違反
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validationError:
+              summary: Validation error
+              value:
+                success: false
+                code: VALIDATION_ERROR
+                message: 入力内容に誤りがあります。
+                details:
+                  - field: title
+                    message: 空白は許可されていません
+                path: /api/expense-applications
+                timestamp: '2026-07-12T10:00:00'
+            businessRuleError:
+              summary: 業務ルール違反
+              value:
+                success: false
+                code: BAD_REQUEST
+                message: 申請中の経費申請のみ承認・差戻しできます。
+                path: /api/expense-applications/10/approve
+                timestamp: '2026-07-12T10:00:00'
     Unauthorized:
       description: 未認証または認証失敗
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: UNAUTHORIZED
+            message: 認証が必要です。
+            path: /api/expense-applications
+            timestamp: '2026-07-12T10:00:00'
     Forbidden:
       description: 権限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: FORBIDDEN
+            message: 他のユーザーの経費申請は操作できません。
+            path: /api/expense-applications/10
+            timestamp: '2026-07-12T10:00:00'
     NotFound:
       description: 対象データなし
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: NOT_FOUND
+            message: 経費申請が見つかりません。
+            path: /api/expense-applications/999
+            timestamp: '2026-07-12T10:00:00'
+    InternalServerError:
+      description: 予期しないシステムエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: INTERNAL_SERVER_ERROR
+            message: システムエラーが発生しました。
+            path: /api/expense-applications
+            timestamp: '2026-07-12T10:00:00'
 
   schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+        - path
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: 入力内容に誤りがあります。
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorDetail'
+        path:
+          type: string
+          example: /api/expense-applications
+        timestamp:
+          type: string
+          description: ISO-8601 local date-time。アプリケーションの timezone は Asia/Tokyo。
+          example: '2026-07-12T10:00:00'
+
+    ValidationErrorDetail:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          example: title
+        message:
+          type: string
+          example: 空白は許可されていません
+
     ApiResponseBase:
       type: object
       required:
@@ -456,7 +592,8 @@ components:
           nullable: true
         timestamp:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time。アプリケーションの timezone は Asia/Tokyo。
+          example: '2026-07-12T10:00:00'
 
     AuthApiResponse:
       allOf:
@@ -465,6 +602,20 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/AuthResponse'
+      example:
+        success: true
+        data:
+          authenticationType: Basic
+          user:
+            id: 1
+            employeeCode: E001
+            name: 一般ユーザー
+            email: user@example.com
+            role: USER
+            roleName: 一般ユーザー
+            department: 開発部
+        message: ログインに成功しました。
+        timestamp: '2026-07-12T10:00:00'
 
     UserApiResponse:
       allOf:
@@ -473,6 +624,17 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/UserResponse'
+      example:
+        success: true
+        data:
+          id: 1
+          employeeCode: E001
+          name: 一般ユーザー
+          email: user@example.com
+          role: USER
+          roleName: 一般ユーザー
+          department: 開発部
+        timestamp: '2026-07-12T10:00:00'
 
     ExpenseApplicationDetailApiResponse:
       allOf:
@@ -481,6 +643,32 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ExpenseApplicationDetailResponse'
+      example:
+        success: true
+        data:
+          id: 10
+          applicant:
+            id: 1
+            employeeCode: E001
+            name: 一般ユーザー
+            email: user@example.com
+            role: USER
+            roleName: 一般ユーザー
+            department: 開発部
+          title: 東京出張交通費
+          status: DRAFT
+          statusName: 下書き
+          totalAmount: 1200
+          items:
+            - id: 100
+              expenseDate: '2026-07-10'
+              category: TRANSPORTATION
+              categoryName: 交通費
+              amount: 1200
+              description: 東京駅から訪問先までの電車代
+          createdAt: '2026-07-12T10:00:00'
+          updatedAt: '2026-07-12T10:00:00'
+        timestamp: '2026-07-12T10:00:00'
 
     ExpenseApplicationPageApiResponse:
       allOf:
@@ -489,6 +677,25 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ExpenseApplicationPageResponse'
+      example:
+        success: true
+        data:
+          content:
+            - id: 10
+              applicantId: 1
+              applicantName: 一般ユーザー
+              title: 東京出張交通費
+              status: SUBMITTED
+              statusName: 申請中
+              totalAmount: 1200
+              submittedAt: '2026-07-12T09:30:00'
+              createdAt: '2026-07-12T09:00:00'
+              updatedAt: '2026-07-12T09:30:00'
+          page: 0
+          size: 20
+          totalElements: 1
+          totalPages: 1
+        timestamp: '2026-07-12T10:00:00'
 
     AuditLogPageApiResponse:
       allOf:
@@ -497,6 +704,23 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/AuditLogPageResponse'
+      example:
+        success: true
+        data:
+          content:
+            - id: 1000
+              userId: 1
+              userName: 一般ユーザー
+              action: EXPENSE_APPLICATION_SUBMIT
+              targetType: EXPENSE_APPLICATION
+              targetId: 10
+              detail: 経費申請を申請しました。
+              createdAt: '2026-07-12T09:30:00'
+          page: 0
+          size: 20
+          totalElements: 1
+          totalPages: 1
+        timestamp: '2026-07-12T10:00:00'
 
     VoidApiResponse:
       allOf:
@@ -506,6 +730,10 @@ components:
             data:
               type: object
               nullable: true
+      example:
+        success: true
+        message: 経費申請を削除しました。
+        timestamp: '2026-07-12T10:00:00'
 
     LoginRequest:
       type: object
@@ -520,6 +748,10 @@ components:
         password:
           type: string
           maxLength: 100
+          format: password
+      example:
+        email: user@example.com
+        password: Password123!
 
     AuthResponse:
       type: object
@@ -564,6 +796,13 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/ExpenseItemRequest'
+      example:
+        title: 東京出張交通費
+        items:
+          - expenseDate: '2026-07-10'
+            category: TRANSPORTATION
+            amount: 1200
+            description: 東京駅から訪問先までの電車代
 
     UpdateExpenseApplicationRequest:
       allOf:
@@ -592,6 +831,12 @@ components:
           type: string
           maxLength: 500
           nullable: true
+      example:
+        expenseDate: '2026-07-10'
+        category: TRANSPORTATION
+        amount: 1200
+        description: 東京駅から訪問先までの電車代
+        receiptObjectKey: receipts/2026/07/example.pdf
 
     ReturnExpenseApplicationRequest:
       type: object
@@ -601,6 +846,8 @@ components:
         returnReason:
           type: string
           maxLength: 1000
+      example:
+        returnReason: 領収書を確認できないため、再添付してください。
 
     ExpenseApplicationPageResponse:
       type: object
@@ -640,14 +887,14 @@ components:
           type: number
         submittedAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
           nullable: true
         createdAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
         updatedAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
 
     ExpenseApplicationDetailResponse:
       type: object
@@ -667,11 +914,11 @@ components:
           type: number
         submittedAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
           nullable: true
         approvedAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
           nullable: true
         approver:
           allOf:
@@ -679,7 +926,7 @@ components:
           nullable: true
         returnedAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
           nullable: true
         returnReason:
           type: string
@@ -690,10 +937,10 @@ components:
             $ref: '#/components/schemas/ExpenseItemResponse'
         createdAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
         updatedAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
 
     ExpenseItemResponse:
       type: object
@@ -758,7 +1005,7 @@ components:
           nullable: true
         createdAt:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time
 
     ExpenseStatus:
       type: string

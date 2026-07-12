@@ -28,7 +28,37 @@ http://localhost:8080
 }
 ```
 
-エラーレスポンスの統一は Global Exception Handler 実装時に詳細化する。
+エラー時は次の共通形式で返却する。`details` は入力項目ごとの Validation error がある場合のみ返却する。
+
+```json
+{
+  "success": false,
+  "code": "VALIDATION_ERROR",
+  "message": "入力内容に誤りがあります。",
+  "details": [
+    {
+      "field": "title",
+      "message": "空白は許可されていません"
+    }
+  ],
+  "path": "/api/expense-applications",
+  "timestamp": "2026-07-12T10:00:00"
+}
+```
+
+主要エラーコード:
+
+| HTTP status | code | 発生条件 |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Bean Validation 違反 |
+| 400 | `INVALID_REQUEST` | JSON、型、列挙値などの形式不正 |
+| 400 | `BAD_REQUEST` | 業務ルール違反 |
+| 401 | `UNAUTHORIZED` | 未認証、認証失敗 |
+| 403 | `FORBIDDEN` | 権限不足 |
+| 404 | `NOT_FOUND` | 対象データなし |
+| 500 | `INTERNAL_SERVER_ERROR` | 未処理のシステムエラー |
+
+内部例外のメッセージ、stack trace、DB 接続情報などはレスポンスに含めない。
 
 ## 2. 認証 API
 

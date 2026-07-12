@@ -33,13 +33,13 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 6 | 申請・承認・差戻し workflow | 完了 |
 | Phase 6.5 | 現状仕様書整理 | 完了 |
 | Phase 7 | ADMIN 全件参照 / 監査ログ | 完了 |
+| Phase 8 | Global Exception Handler | 完了 |
+| Phase 9 | OpenAPI / Swagger 詳細化 | 完了 |
 
 ## 3. 後続フェーズ
 
 | Phase | 内容 | 文書先行タスク |
 |---|---|---|
-| Phase 8 | Global Exception Handler | エラーレスポンス仕様、例外マッピング表、Controller テスト仕様を先に作成する。 |
-| Phase 9 | OpenAPI / Swagger 詳細化 | 既存の `openapi.yaml` と実装を突合し、Swagger 表示、契約校正、Mock 利用を整備する。 |
 | Phase 10 | テストコード拡充 | 単体テスト仕様書の未実装ケースを実装する。 |
 | Phase 11 | 結合テスト / エビデンス | API 単位の結合テスト仕様と実行結果を記録する。 |
 | Phase 12 | GitHub Actions / production Dockerfile | CI 実行条件、成果物、失敗時対応を設計する。 |
@@ -48,8 +48,8 @@ API / DB / 権限 / 状態遷移仕様更新
 
 ## 4. 次に実施する作業
 
-Phase 8 に入る前に、以下を決める。
+Phase 10 では、以下を実施する。
 
-- エラーレスポンスの JSON 形式をどうするか。
-- `ResponseStatusException`、Validation error、認証・認可エラーのマッピングをどうするか。
-- Controller テストをどの範囲まで追加するか。
+- `docs/07_unit_test_spec.md` の未実装 Service テストを追加する。
+- Auth、ExpenseApplication、AuditLog Controller の正常系 MockMvc テストを追加する。
+- Security の role / ownership / status 遷移テストを拡充する。
