@@ -4,7 +4,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| 実行日 | 2026-07-12 |
+| 実行日 | 2026-07-13 |
 | 実行環境 | Docker Compose |
 | Java | Java 17 |
 | Gradle | Gradle 8.10.2 |
@@ -20,7 +20,7 @@ docker compose run --rm java-dev ./gradlew test
 
 ```text
 BUILD SUCCESSFUL
-18 tests, 0 failures, 0 errors
+26 tests, 0 failures, 0 errors
 ```
 
 ## 4. 確認済みテスト
@@ -31,6 +31,11 @@ BUILD SUCCESSFUL
 | UT-EXP-002 | `approve_正常系_承認者が申請中を承認する` | OK | 承認者による承認処理を確認。 |
 | UT-EXP-003 | `approve_異常系_自分の申請は承認できない` | OK | 自己承認禁止を確認。 |
 | UT-EXP-004 | `returnApplication_異常系_USERは差戻しできない` | OK | USER の差戻し禁止を確認。 |
+| UT-EXP-005 | `update_正常系_下書きのヘッダと明細を更新する` | OK | ヘッダ、合計金額、明細の更新を確認。 |
+| UT-EXP-006 | `update_異常系_申請中は更新できない` | OK | 申請中データの更新禁止を確認。 |
+| UT-EXP-007 | `getById_異常系_他人の申請は参照できない` | OK | 他人の申請に対する参照禁止を確認。 |
+| UT-EXP-008 | `approve_異常系_下書きは承認できない` | OK | 下書き状態の承認禁止を確認。 |
+| UT-EXP-009 | `returnApplication_正常系_承認者が申請中を差戻す` | OK | 差戻し状態、理由、監査ログ登録を確認。 |
 | UT-ADM-001 | `search_正常系_ADMINは全件検索できる` | OK | ADMIN は applicantId を強制設定されず検索できることを確認。 |
 | UT-ADM-002 | `getById_正常系_ADMINは他人の申請詳細を参照できる` | OK | ADMIN の他人申請詳細参照を確認。 |
 | UT-AUD-001 | `submit_正常系_監査ログを登録する` | OK | 申請操作時の監査ログ登録を確認。 |
@@ -46,12 +51,15 @@ BUILD SUCCESSFUL
 | CT-API-001 | `openApi_正常系_正式YAMLが静的Resourceへコピーされる` | OK | 正式 YAML と build artifact が一致することを確認。 |
 | CT-API-002 | `openApi_正常系_実装Endpointと共通契約を定義する` | OK | 全 path、Basic Auth、共通エラー schema を確認。 |
 | CT-API-003 | `openApi_正常系_operationIdと認証と共通500Responseを定義する` | OK | operationId の一意性、認証、500 response を確認。 |
+| CT-CTRL-001 | `login_正常系_認証情報とユーザーを返す` | OK | Login API の正常レスポンスを確認。 |
+| CT-CTRL-002 | `create_正常系_作成した経費申請を返す` | OK | Create API の入力変換と正常レスポンスを確認。 |
+| CT-CTRL-003 | `search_正常系_検索条件と監査ログ一覧を返す` | OK | 監査ログ検索条件とページングレスポンスを確認。 |
 
 ## 5. 未実施・後続確認
 
 | 項目 | 理由 |
 |---|---|
-| Controller API テストの拡充 | Phase 8 の異常系は実施済み。正常系と全 endpoint は Phase 10 / 11 で追加する。 |
+| Controller API 全 endpoint テスト | Phase 10 で主要 Controller の正常系を追加済み。残りの endpoint は Phase 11 の結合テストで確認する。 |
 | DB integration test | Testcontainers または実 DB を利用したテスト未作成のため。 |
 
 ## 6. Phase 9 実行時確認

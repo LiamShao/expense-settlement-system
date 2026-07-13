@@ -35,12 +35,12 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 7 | ADMIN 全件参照 / 監査ログ | 完了 |
 | Phase 8 | Global Exception Handler | 完了 |
 | Phase 9 | OpenAPI / Swagger 詳細化 | 完了 |
+| Phase 10 | テストコード拡充 | 完了 |
 
 ## 3. 後続フェーズ
 
 | Phase | 内容 | 文書先行タスク |
 |---|---|---|
-| Phase 10 | テストコード拡充 | 単体テスト仕様書の未実装ケースを実装する。 |
 | Phase 11 | 結合テスト / エビデンス | API 単位の結合テスト仕様と実行結果を記録する。 |
 | Phase 12 | GitHub Actions / production Dockerfile | CI 実行条件、成果物、失敗時対応を設計する。 |
 | Phase 13 | AWS architecture design | ネットワーク、ECS、RDS、S3、Secrets、監視設計を文書化する。 |
@@ -48,8 +48,8 @@ API / DB / 権限 / 状態遷移仕様更新
 
 ## 4. 次に実施する作業
 
-Phase 10 では、以下を実施する。
+Phase 11 では、以下を実施する。
 
-- `docs/07_unit_test_spec.md` の未実装 Service テストを追加する。
-- Auth、ExpenseApplication、AuditLog Controller の正常系 MockMvc テストを追加する。
-- Security の role / ownership / status 遷移テストを拡充する。
+- PostgreSQL を利用した API 結合テスト仕様を作成する。
+- Auth、ExpenseApplication、AuditLog の主要 endpoint を実 DB で確認する。
+- API 単位の実行結果を `docs/08_test_evidence.md` に記録する。
