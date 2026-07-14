@@ -39,9 +39,9 @@
 | ID | 要件 | 内容 | 状態 |
 |---|---|---|---|
 | NFR-SEC-001 | 認証 | HTTP Basic 認証により API を保護する。 | 実装済み |
-| NFR-SEC-002 | 認可 | ロールと申請者本人チェックにより操作を制御する。 | 一部実装 |
+| NFR-SEC-002 | 認可 | ロールと申請者本人チェックにより操作を制御する。 | 実装済み |
 | NFR-DB-001 | DB 管理 | Flyway により migration を管理する。 | 実装済み |
-| NFR-TEST-001 | テスト | JUnit 5 / Mockito により Service 層の業務ルールを検証する。 | 一部実装 |
+| NFR-TEST-001 | テスト | JUnit 5 / Mockito による単体テストと Testcontainers PostgreSQL による API 結合テストを実施する。 | 実装済み |
 | NFR-OPS-001 | 実行環境 | Docker Compose により Java / PostgreSQL 開発環境を提供する。 | 実装済み |
 
 ## 5. 前提・制約

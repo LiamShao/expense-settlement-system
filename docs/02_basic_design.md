@@ -67,10 +67,9 @@ PostgreSQL
 | BR-WF-003 | 承認・差戻しは `APPROVER` / `ADMIN` のみ実行できる。 |
 | BR-WF-004 | 承認者・管理者は自分の申請を承認・差戻しできない。 |
 
-## 6. 後続設計対象
+## 6. 補足機能
 
-- ADMIN 全件参照
-- 監査ログ登録
-- Global Exception Handler によるエラーレスポンス統一
-- OpenAPI / Swagger 詳細化
-- Controller 層テストと DB integration test
+- ADMIN 全件参照と監査ログ登録を実装済みとする。
+- Global Exception Handler により API と Security のエラーレスポンスを統一する。
+- `docs/openapi.yaml` を正式契約とし、Swagger UI と Prism Mock Server から利用する。
+- Controller 単体テストに加え、Testcontainers PostgreSQL を利用した API 結合テストを実施する。

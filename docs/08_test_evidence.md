@@ -4,23 +4,26 @@
 
 | 項目 | 内容 |
 |---|---|
-| 実行日 | 2026-07-13 |
-| 実行環境 | Docker Compose |
+| 実行日 | 2026-07-14 |
+| 実行環境 | Docker Compose / Testcontainers |
 | Java | Java 17 |
 | Gradle | Gradle 8.10.2 |
-| DB | PostgreSQL 16 container |
+| DB | PostgreSQL 16 Testcontainer |
 
 ## 2. 実行コマンド
 
 ```bash
-docker compose run --rm java-dev ./gradlew test
+docker compose run --rm --no-deps --user 1000:0 \
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  java-dev ./gradlew --no-daemon test
 ```
 
 ## 3. 実行結果
 
 ```text
 BUILD SUCCESSFUL
-26 tests, 0 failures, 0 errors
+34 tests, 0 failures, 0 errors
 ```
 
 ## 4. 確認済みテスト
@@ -54,13 +57,21 @@ BUILD SUCCESSFUL
 | CT-CTRL-001 | `login_正常系_認証情報とユーザーを返す` | OK | Login API の正常レスポンスを確認。 |
 | CT-CTRL-002 | `create_正常系_作成した経費申請を返す` | OK | Create API の入力変換と正常レスポンスを確認。 |
 | CT-CTRL-003 | `search_正常系_検索条件と監査ログ一覧を返す` | OK | 監査ログ検索条件とページングレスポンスを確認。 |
+| IT-AUTH-001 | `login_結合テスト_DBユーザーでログインできる` | OK | Flyway seed user と BCrypt password によるログインを確認。 |
+| IT-AUTH-002 | `me_結合テスト_Basic認証ユーザーをDBから取得する` | OK | Basic 認証と DB ユーザー取得を確認。 |
+| IT-EXP-001 | `create_結合テスト_申請と明細と監査ログをDBへ保存する` | OK | ヘッダ、明細、合計金額、作成ログの永続化を確認。 |
+| IT-EXP-002 | `search_結合テスト_USERは本人のみADMINは全件参照できる` | OK | USER の本人限定検索と ADMIN の全件検索を確認。 |
+| IT-EXP-003 | `workflow_結合テスト_作成から申請と承認まで遷移する` | OK | DRAFT、SUBMITTED、APPROVED の遷移と承認者保存を確認。 |
+| IT-EXP-004 | `getById_結合テスト_USERは他人の申請を参照できない` | OK | 実 DB データに対する所有者権限を確認。 |
+| IT-AUD-001 | `auditLog_結合テスト_ADMINは業務操作ログを検索できる` | OK | 作成、申請、承認ログの保存と ADMIN 検索を確認。 |
+| IT-AUD-002 | `auditLog_結合テスト_USERは監査ログを参照できない` | OK | USER の監査ログ参照禁止を確認。 |
 
 ## 5. 未実施・後続確認
 
 | 項目 | 理由 |
 |---|---|
-| Controller API 全 endpoint テスト | Phase 10 で主要 Controller の正常系を追加済み。残りの endpoint は Phase 11 の結合テストで確認する。 |
-| DB integration test | Testcontainers または実 DB を利用したテスト未作成のため。 |
+| Controller API 全 endpoint・全分岐テスト | Phase 11 では主要業務フローを対象としたため、更新、削除、差戻しの全分岐は単体テストで確認している。 |
+| 性能・負荷テスト | 現フェーズは機能結合テストを対象とするため。 |
 
 ## 6. Phase 9 実行時確認
 
