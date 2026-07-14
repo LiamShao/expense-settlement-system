@@ -73,7 +73,20 @@ BUILD SUCCESSFUL
 | Controller API 全 endpoint・全分岐テスト | Phase 11 では主要業務フローを対象としたため、更新、削除、差戻しの全分岐は単体テストで確認している。 |
 | 性能・負荷テスト | 現フェーズは機能結合テストを対象とするため。 |
 
-## 6. Phase 9 実行時確認
+## 6. Phase 12 local verification
+
+| 確認項目 | 結果 |
+|---|---|
+| production multi-stage image build | OK (`expense-settlement-system:phase12`) |
+| runtime user | OK (`spring:spring`) |
+| PostgreSQL / Flyway 接続 | OK |
+| `GET /actuator/health` | 200 / `UP` |
+| full regression | 34 tests、0 failures、0 errors、0 skipped |
+| GitHub Actions workflow 構文 | YAML parse、`git diff --check` OK |
+
+production image は local Docker Desktop で build・起動確認した。GitHub Actions workflow 自体の実行結果は、workflow を GitHub へ push した後に初回 run で確認する。
+
+## 7. Phase 9 実行時確認
 
 | 確認項目 | 結果 |
 |---|---|
@@ -85,6 +98,6 @@ BUILD SUCCESSFUL
 | Mock 未認証リクエスト | 401 Unauthorized |
 | Mock Basic Auth リクエスト | 200 OK |
 
-## 7. 補足
+## 8. 補足
 
 本エビデンスは自動テスト実行結果の要約である。SIer 形式の詳細エビデンスとして提出する場合は、対象テスト、入力値、期待値、実行結果、ログまたはスクリーンショットをケース単位で追加する。

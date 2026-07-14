@@ -43,6 +43,8 @@
 | NFR-DB-001 | DB 管理 | Flyway により migration を管理する。 | 実装済み |
 | NFR-TEST-001 | テスト | JUnit 5 / Mockito による単体テストと Testcontainers PostgreSQL による API 結合テストを実施する。 | 実装済み |
 | NFR-OPS-001 | 実行環境 | Docker Compose により Java / PostgreSQL 開発環境を提供する。 | 実装済み |
+| NFR-CI-001 | 継続的インテグレーション | pull request と `main` push で全自動テストと application package build を実行する。 | 実装済み |
+| NFR-OPS-002 | production container | multi-stage build と非 root user を利用した application 実行用 image を提供する。 | 実装済み |
 
 ## 5. 前提・制約
 

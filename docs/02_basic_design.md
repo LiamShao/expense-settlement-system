@@ -73,3 +73,19 @@ PostgreSQL
 - Global Exception Handler により API と Security のエラーレスポンスを統一する。
 - `docs/openapi.yaml` を正式契約とし、Swagger UI と Prism Mock Server から利用する。
 - Controller 単体テストに加え、Testcontainers PostgreSQL を利用した API 結合テストを実施する。
+
+## 7. CI / container 構成
+
+```text
+pull request / main push
+  ↓
+GitHub Actions
+  ├─ Gradle full test / executable JAR build
+  └─ production image build / PostgreSQL smoke test
+```
+
+- GitHub-hosted Ubuntu runner と Java 17 で Gradle Wrapper を実行する。
+- Testcontainers が runner の Docker daemon に PostgreSQL 16 を起動し、API 結合テストを実行する。
+- production `Dockerfile` は multi-stage build とし、runtime image には JRE と executable JAR のみを配置する。
+- application container は非 root user で実行し、DB credential は環境変数から受け取る。
+- 詳細は `docs/13_ci_container_design.md` に定義する。

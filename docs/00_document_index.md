@@ -20,6 +20,7 @@
 | 10 | [エラーハンドリング設計書](10_error_handling.md) | 共通エラーレスポンスと例外マッピングを定義する。 |
 | 11 | [OpenAPI / Swagger / Mock 利用手順](11_openapi_mock.md) | 正式契約、Swagger UI、Mock Server の利用方法を定義する。 |
 | 12 | [API結合テスト仕様書](12_integration_test_spec.md) | PostgreSQL を利用した API 結合テストの対象、環境、ケースを定義する。 |
+| 13 | [CI / production container 設計書](13_ci_container_design.md) | GitHub Actions と production image の実行条件、成果物、検証方法を定義する。 |
 | API | [OpenAPI定義](openapi.yaml) | 実装済み API の機械可読な契約を定義する。 |
 
 ## 文書更新ルール

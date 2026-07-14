@@ -37,20 +37,20 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 9 | OpenAPI / Swagger 詳細化 | 完了 |
 | Phase 10 | テストコード拡充 | 完了 |
 | Phase 11 | 結合テスト / エビデンス | 完了 |
+| Phase 12 | GitHub Actions / production Dockerfile | 完了 |
 
 ## 3. 後続フェーズ
 
 | Phase | 内容 | 文書先行タスク |
 |---|---|---|
-| Phase 12 | GitHub Actions / production Dockerfile | CI 実行条件、成果物、失敗時対応を設計する。 |
 | Phase 13 | AWS architecture design | ネットワーク、ECS、RDS、S3、Secrets、監視設計を文書化する。 |
 | Phase 14 | React frontend | 画面一覧、画面遷移、項目定義、API 連携仕様を先に作成する。 |
 
 ## 4. 次に実施する作業
 
-Phase 12 では、以下を実施する。
+Phase 13 では、以下を実施する。
 
-- pull request と `main` push を対象とする CI 実行条件を定義する。
-- 単体テストと Testcontainers 結合テストを GitHub Actions で実行する。
-- production 用 multi-stage Dockerfile を作成する。
-- CI の実行結果と container image build 結果を記録する。
+- AWS 上の production architecture と責任分界を定義する。
+- VPC、public/private subnet、ALB、ECS Fargate、RDS PostgreSQL の接続を設計する。
+- Secrets Manager、IAM、CloudWatch Logs / Metrics の利用方針を定義する。
+- production image の registry、tag、ECS deployment 方針を定義する。
