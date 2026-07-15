@@ -38,19 +38,20 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 10 | テストコード拡充 | 完了 |
 | Phase 11 | 結合テスト / エビデンス | 完了 |
 | Phase 12 | GitHub Actions / production Dockerfile | 完了 |
+| Phase 13 | AWS architecture design | 完了 |
 
 ## 3. 後続フェーズ
 
 | Phase | 内容 | 文書先行タスク |
 |---|---|---|
-| Phase 13 | AWS architecture design | ネットワーク、ECS、RDS、S3、Secrets、監視設計を文書化する。 |
 | Phase 14 | React frontend | 画面一覧、画面遷移、項目定義、API 連携仕様を先に作成する。 |
 
 ## 4. 次に実施する作業
 
-Phase 13 では、以下を実施する。
+Phase 14 では、以下を実施する。
 
-- AWS 上の production architecture と責任分界を定義する。
-- VPC、public/private subnet、ALB、ECS Fargate、RDS PostgreSQL の接続を設計する。
-- Secrets Manager、IAM、CloudWatch Logs / Metrics の利用方針を定義する。
-- production image の registry、tag、ECS deployment 方針を定義する。
+- React / TypeScript frontend の画面一覧と画面遷移を定義する。
+- Login、申請一覧、申請詳細、作成・編集、承認・差戻し、監査ログの画面項目を定義する。
+- Role と status に応じた表示・操作可否を定義する。
+- HTTP Basic 認証を含む既存 API との連携、error 表示、pagination の仕様を定義する。
+- frontend 設計承認後に実装と test を行う。

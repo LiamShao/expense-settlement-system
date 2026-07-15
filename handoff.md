@@ -4,47 +4,58 @@
 
 ### Date
 
-2026-07-14 16:47 JST (Asia/Tokyo)
+2026-07-15 15:07 JST (Asia/Tokyo)
 
 ### Current status
 
-- Phase 12 documentation and the production multi-stage Dockerfile were completed, verified, committed as `8681f2c` (`add CI and production container`), and pushed.
-- The GitHub Actions workflow added by `8681f2c` was subsequently deleted by pushed commit `d474186`; commit `ab38fa5` also added `.github/workflows/ci.yml` to `.gitignore`.
-- The repository therefore currently has no GitHub Actions workflow, although the Phase 12 documentation and phase plan still describe CI as implemented/complete.
-- Before this handoff update, the working tree was clean and `main` matched `origin/main` at `d474186`.
+- Phase 13 AWS architecture design is complete locally. A new `docs/14_aws_architecture_design.md` defines the production network, ECS Fargate, RDS, S3, Secrets Manager/IAM, monitoring, deployment, recovery, cost, and responsibility boundaries.
+- README, requirements, basic design, document index, and phase plan were updated. Phase 13 is marked complete and Phase 14 React frontend is the next planned phase.
+- No AWS resources were created. IaC, AWS deployment, S3 file APIs, and remote CI/CD remain unimplemented.
+- `main` still matches `origin/main` at `332f546`; all Phase 13 documentation changes and this handoff are uncommitted.
 
 ### Completed
 
-- Added `Dockerfile` with a Gradle/JDK 17 builder stage and Eclipse Temurin 17 JRE runtime stage.
-- Configured the production image to run as non-root user `spring:spring`, expose port 8080, and accept database credentials through environment variables.
-- Added `docs/13_ci_container_design.md` and updated README, requirements, basic design, test evidence, document index, and phase plan for Phase 12.
-- Added and locally validated a two-job GitHub Actions workflow in `8681f2c`; this workflow is no longer present at current `HEAD` because of `d474186`.
-- Added and pushed the repository handoff workflow in `f58aa5d`.
+- Confirmed that the earlier CI workflow deletion was intentional.
+- Restored `.github/workflows/ci.yml` from `8681f2c` as an ignored local-only file while retaining `.gitignore`; it is not tracked, committed, pushed, or active on GitHub.
+- Added the Phase 13 AWS architecture design using an `ap-northeast-1`, two-AZ production baseline with an internet-facing ALB and private ECS/RDS tiers.
+- Defined ECR immutable image/deployment policy, ECS circuit-breaker rollback, RDS Multi-AZ/backup policy, private S3 receipt storage, IAM role separation, CloudWatch monitoring, provisional RTO/RPO, cost considerations, and AWS/project responsibility boundaries.
+- Updated the formal plan so Phase 14 frontend design and implementation are next.
 
 ### In progress / uncommitted changes
 
-- Modified: `handoff.md` (this end-of-day snapshot only).
-- No application, Dockerfile, or documentation changes were uncommitted before the handoff update.
+- Modified: `README.md`.
+- Modified: `docs/00_document_index.md`.
+- Modified: `docs/01_requirements.md`.
+- Modified: `docs/02_basic_design.md`.
+- Modified: `docs/09_phase_plan.md`.
+- Untracked: `docs/14_aws_architecture_design.md`.
+- Modified: `handoff.md` (this end-of-day snapshot).
+- Ignored local-only file: `.github/workflows/ci.yml`; its blob matches `8681f2c` exactly and it must remain ignored until the user decides otherwise.
+- No application source, test, Dockerfile, or infrastructure files were changed today.
 
 ### Verification
 
-- Full regression at 2026-07-14 16:24 JST: `BUILD SUCCESSFUL` in 56 seconds; 34 tests, 0 failures, 0 errors, 0 skipped.
-- Production image `expense-settlement-system:phase12` built successfully from the new multi-stage `Dockerfile`.
-- The production container ran as `spring:spring`, connected to PostgreSQL/Flyway, and returned `UP` from `/actuator/health`.
-- The workflow YAML parsed successfully and `git diff --check` passed before it was committed; no remote GitHub Actions run was confirmed.
-- Current `HEAD` does not contain `.github/workflows/ci.yml`, so CI is not active in the current repository state.
+- `git diff --check` passed after the Phase 13 documentation changes.
+- Local Markdown link target check passed for README and `docs/*.md`.
+- `.github/workflows/ci.yml` exists locally, is matched by `.gitignore`, and has the same Git blob hash as `8681f2c:.github/workflows/ci.yml`.
+- Application tests were not run today because all Phase 13 changes are documentation-only.
+- Last full application regression remains 2026-07-14: 34 tests, 0 failures, 0 errors, 0 skipped.
+- No AWS deployment, remote GitHub Actions run, commit, or push was performed.
 
 ### Next steps
 
-1. Confirm why `.github/workflows/ci.yml` was ignored and deleted after `8681f2c`.
-2. If the deletion was intentional, update README and `docs/01_requirements.md`, `docs/02_basic_design.md`, `docs/08_test_evidence.md`, `docs/09_phase_plan.md`, and `docs/13_ci_container_design.md` so they no longer claim CI is active.
-3. If CI should remain part of Phase 12, remove its `.gitignore` entry, restore the workflow from `8681f2c`, push it, and verify the first GitHub Actions run.
-4. Once code and documentation agree, start Phase 13 with the AWS architecture and responsibility-boundary design.
+1. Review the uncommitted Phase 13 documentation diff and adjust any provisional production assumptions if needed; do not push unless the user explicitly allows it.
+2. Start Phase 14 with a frontend design document covering page list, navigation, field definitions, role/status behavior, authentication, API integration, errors, and pagination.
+3. Derive the initial pages from the implemented APIs: login, application list/detail/create/edit, submit/approve/return operations, and ADMIN audit-log search.
+4. Update README, requirements, basic design, authority matrix, and phase plan to distinguish frontend design from implementation before creating the React application.
+5. After design approval, choose the React/TypeScript toolchain and implement Phase 14 with tests.
 
 ### Blockers / important notes
 
-- The current CI documentation conflicts with current `HEAD`: production container support exists, but the workflow file does not.
-- Do not restore or rewrite the two user-created commits without first confirming whether the CI removal was deliberate.
+- The user intentionally removed remote CI. Keep `.github/workflows/ci.yml` ignored and local-only; do not force-add, commit, or push it without a new explicit request.
+- Phase 13 values such as `10.20.0.0/16`, ECS 0.5 vCPU/1 GiB, scaling 2-6, 30/90-day log retention, RPO 5 minutes, and RTO 4 hours are provisional and must be confirmed before infrastructure implementation.
+- HTTP Basic remains the implemented authentication method; the AWS design flags JWT/OIDC and stronger production authentication as a later requirement.
+- Phase 13 is design-only. Do not describe AWS, S3 upload/download, IaC, ECR deployment, or CloudWatch alarms as implemented.
 - The host does not have a directly usable Java runtime, so Gradle verification is run through the `java-dev` Docker Compose service.
 - In the development container, Testcontainers requires Docker socket access and `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`.
 - Using group `0` for the container process allows Docker socket access while keeping workspace files owned by UID 1000.
@@ -53,10 +64,11 @@
 
 ```bash
 git status --short --branch
-git log --oneline -5
-git show --stat d474186
-git show 8681f2c:.github/workflows/ci.yml
+git diff -- README.md docs/ handoff.md
+sed -n '1,360p' docs/14_aws_architecture_design.md
+sed -n '1,140p' docs/09_phase_plan.md
 git diff --check
+git check-ignore -v .github/workflows/ci.yml
 docker compose run --rm --no-deps --user 1000:0 \
   -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -65,5 +77,6 @@ docker compose run --rm --no-deps --user 1000:0 \
 
 ## History
 
+- 2026-07-15 15:07 JST: Restored the CI workflow as an ignored local-only file and completed the uncommitted Phase 13 AWS architecture design. Phase 14 React frontend design is next; no AWS resources, commit, or push were created.
 - 2026-07-14 16:47 JST: Completed and verified the production Dockerfile and Phase 12 documentation. The pushed CI workflow was later ignored and deleted; current code/documentation consistency must be resolved next.
 - 2026-07-14: Completed Phase 11 with eight PostgreSQL API integration tests; full suite passed with 34 tests. Added the repository handoff workflow.

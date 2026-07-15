@@ -45,6 +45,10 @@
 | NFR-OPS-001 | 実行環境 | Docker Compose により Java / PostgreSQL 開発環境を提供する。 | 実装済み |
 | NFR-CI-001 | 継続的インテグレーション | pull request と `main` push で全自動テストと application package build を実行する。 | 実装済み |
 | NFR-OPS-002 | production container | multi-stage build と非 root user を利用した application 実行用 image を提供する。 | 実装済み |
+| NFR-AWS-001 | AWS architecture | ALB、ECS Fargate、RDS PostgreSQL、S3 を利用した Multi-AZ production architecture を定義する。 | 設計済み・未構築 |
+| NFR-AWS-002 | Network security | ECS と RDS を private subnet に配置し、security group で ALB、ECS、RDS 間の必要通信だけを許可する。 | 設計済み・未構築 |
+| NFR-AWS-003 | Secret / IAM | DB credential を Secrets Manager で管理し、task execution role、task role、deployment role を最小権限で分離する。 | 設計済み・未構築 |
+| NFR-AWS-004 | Monitoring / recovery | CloudWatch による log、metric、alarm と、RDS backup/restore、ECS rollback の方針を定義する。 | 設計済み・未構築 |
 
 ## 5. 前提・制約
 
@@ -52,3 +56,4 @@
 - 認証方式は学習目的として HTTP Basic を採用する。
 - 領収書ファイルの実体管理は未実装であり、DB には object key のみ保持する。
 - 監査ログは業務操作の追跡を目的とし、認証失敗や参照操作は現時点では記録対象外とする。
+- AWS architecture は設計のみ完了しており、AWS resource、IaC、S3 file API、CI/CD deployment は未実装とする。

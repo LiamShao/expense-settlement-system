@@ -89,3 +89,23 @@ GitHub Actions
 - production `Dockerfile` は multi-stage build とし、runtime image には JRE と executable JAR のみを配置する。
 - application container は非 root user で実行し、DB credential は環境変数から受け取る。
 - 詳細は `docs/13_ci_container_design.md` に定義する。
+
+## 8. AWS production 構成
+
+```text
+Internet
+  ↓ HTTPS
+Application Load Balancer（public subnet / 2 AZ）
+  ↓ TCP 8080
+ECS Fargate（private application subnet / 2 AZ）
+  ↓ TCP 5432
+RDS PostgreSQL Multi-AZ（private database subnet / 2 AZ）
+```
+
+- Route 53 と ACM を利用し、public entry point は ALB の HTTPS listener のみとする。
+- ECS task と RDS に public IP を付与しない。
+- production image は ECR private repository に保存し、immutable tag と image scan を利用する。
+- DB credential は Secrets Manager で管理し、ECS の task execution role と application task role を分離する。
+- 領収書は private S3 bucket に保存する設計とするが、file upload/download は後続実装とする。
+- CloudWatch Logs、Metrics、Alarm と ECS deployment rollback、RDS backup/restore を運用設計に含める。
+- 詳細は `docs/14_aws_architecture_design.md` に定義する。AWS resource と deployment pipeline は未構築である。
