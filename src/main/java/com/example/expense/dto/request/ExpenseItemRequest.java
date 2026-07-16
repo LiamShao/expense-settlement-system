@@ -2,6 +2,8 @@ package com.example.expense.dto.request;
 
 import com.example.expense.common.enums.ExpenseCategory;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -19,6 +21,8 @@ public class ExpenseItemRequest {
 
     @NotNull
     @DecimalMin(value = "1")
+    @DecimalMax(value = "999999999999")
+    @Digits(integer = 12, fraction = 0)
     private BigDecimal amount;
 
     @NotBlank

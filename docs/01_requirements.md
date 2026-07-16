@@ -33,6 +33,12 @@
 | REQ-ADM-001 | ADMIN は全ユーザーの経費申請一覧と詳細を参照できる。 | 実装済み |
 | REQ-AUD-001 | 経費申請の作成、更新、削除、申請、承認、差戻しは監査ログに記録される。 | 実装済み |
 | REQ-AUD-002 | ADMIN は監査ログを検索できる。USER / APPROVER は監査ログを参照できない。 | 実装済み |
+| REQ-REV-001 | APPROVER / ADMIN は他人の申請中データを承認待ち一覧で検索できる。 | 実装済み |
+| REQ-REV-002 | APPROVER / ADMIN は他人の申請中データを承認判断のため詳細参照できる。 | 実装済み |
+| REQ-FE-001 | 利用者は React / TypeScript の画面から login、申請検索、詳細参照、作成、編集、削除、申請を行える。 | 設計済み・未実装 |
+| REQ-FE-002 | APPROVER / ADMIN は承認待ち画面から他人の申請内容を確認し、承認または差戻しできる。 | API 実装済み・frontend 未実装 |
+| REQ-FE-003 | ADMIN は画面から監査ログを検索・ページングできる。 | 設計済み・未実装 |
+| REQ-FE-004 | frontend は role、申請者、status に応じて navigation と action の表示・操作可否を制御する。 | 設計済み・未実装 |
 
 ## 4. 非機能要件
 
@@ -49,11 +55,15 @@
 | NFR-AWS-002 | Network security | ECS と RDS を private subnet に配置し、security group で ALB、ECS、RDS 間の必要通信だけを許可する。 | 設計済み・未構築 |
 | NFR-AWS-003 | Secret / IAM | DB credential を Secrets Manager で管理し、task execution role、task role、deployment role を最小権限で分離する。 | 設計済み・未構築 |
 | NFR-AWS-004 | Monitoring / recovery | CloudWatch による log、metric、alarm と、RDS backup/restore、ECS rollback の方針を定義する。 | 設計済み・未構築 |
+| NFR-FE-001 | Usability | 日本語 UI、responsive layout、loading、empty、error state を一貫して提供する。 | 設計済み・未実装 |
+| NFR-FE-002 | Accessibility | label、keyboard operation、focus management、色に依存しない状態表示を提供する。 | 設計済み・未実装 |
+| NFR-FE-003 | Frontend test | Unit、component、API mock integration、主要 workflow の E2E test を実施する。 | 設計済み・未実装 |
 
 ## 5. 前提・制約
 
-- 画面は未実装であり、現時点では REST API のみを対象とする。
+- React / TypeScript frontend は設計済み・未実装であり、現時点で利用可能なのは REST API のみとする。
 - 認証方式は学習目的として HTTP Basic を採用する。
 - 領収書ファイルの実体管理は未実装であり、DB には object key のみ保持する。
 - 監査ログは業務操作の追跡を目的とし、認証失敗や参照操作は現時点では記録対象外とする。
 - AWS architecture は設計のみ完了しており、AWS resource、IaC、S3 file API、CI/CD deployment は未実装とする。
+- 金額は 1 円以上 999999999999 円以下の整数とし、申請合計も 999999999999 円以下とする。

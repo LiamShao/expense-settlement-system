@@ -7,6 +7,7 @@ import com.example.expense.dto.request.CreateExpenseApplicationRequest;
 import com.example.expense.dto.request.ExpenseApplicationSearchRequest;
 import com.example.expense.dto.request.ExpenseItemRequest;
 import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
+import com.example.expense.dto.request.ReviewSearchRequest;
 import com.example.expense.dto.request.UpdateExpenseApplicationRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
@@ -30,6 +31,8 @@ import java.util.Objects;
 
 @Service
 public class ExpenseApplicationService {
+
+    static final BigDecimal MAX_TOTAL_AMOUNT = new BigDecimal("999999999999");
 
     private final ExpenseApplicationMapper expenseApplicationMapper;
     private final ExpenseItemMapper expenseItemMapper;
@@ -74,6 +77,28 @@ public class ExpenseApplicationService {
     public ExpenseApplicationDetailResponse getById(Long id, SecurityUser securityUser) {
         ExpenseApplication application = findApplication(id);
         assertOwnerOrAdmin(application, securityUser);
+        return toDetailResponse(application);
+    }
+
+    public PageResponse<ExpenseApplicationSummaryResponse> searchReviews(
+            ReviewSearchRequest request,
+            SecurityUser securityUser
+    ) {
+        assertReviewer(securityUser);
+        List<ExpenseApplicationSummaryResponse> content = expenseApplicationMapper.searchReviews(
+                request,
+                securityUser.getId()
+        );
+        content.forEach(this::setStatusName);
+        long totalElements = expenseApplicationMapper.countReviews(request, securityUser.getId());
+        return new PageResponse<>(content, request.getPage(), request.getSize(), totalElements);
+    }
+
+    public ExpenseApplicationDetailResponse getReviewById(Long id, SecurityUser securityUser) {
+        assertReviewer(securityUser);
+        ExpenseApplication application = findApplication(id);
+        assertReviewable(application);
+        assertNotOwnApplication(application, securityUser);
         return toDetailResponse(application);
     }
 
@@ -261,9 +286,16 @@ public class ExpenseApplicationService {
     }
 
     private BigDecimal calculateTotalAmount(List<ExpenseItemRequest> items) {
-        return items.stream()
+        BigDecimal totalAmount = items.stream()
                 .map(ExpenseItemRequest::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalAmount.compareTo(MAX_TOTAL_AMOUNT) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "経費申請の合計金額は999999999999円以下にしてください。"
+            );
+        }
+        return totalAmount;
     }
 
     private List<ExpenseItem> toExpenseItems(Long applicationId, List<ExpenseItemRequest> requests) {

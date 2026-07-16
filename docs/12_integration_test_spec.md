@@ -24,7 +24,7 @@ PostgreSQL Testcontainer
 
 - Flyway による schema 作成と初期データ投入
 - DB ユーザーを利用した HTTP Basic 認証
-- Auth、ExpenseApplication、AuditLog の主要 endpoint
+- Auth、ExpenseApplication、Review、AuditLog の主要 endpoint
 - 経費申請の登録、検索、状態遷移
 - ロールおよび申請者本人による認可
 - 業務操作に伴う監査ログ登録
@@ -69,6 +69,7 @@ Flyway seed data の次のユーザーを利用する。
 | IT-EXP-002 | `GET /api/expense-applications` | USER と ADMIN が一覧検索する | USER は自分の申請だけ、ADMIN は全ユーザーの申請を取得できる |
 | IT-EXP-003 | submit / approve | USER が作成・申請し、APPROVER が承認する | `DRAFT` → `SUBMITTED` → `APPROVED` と遷移し、承認者を保存する |
 | IT-EXP-004 | `GET /api/expense-applications/{id}` | USER が他人の申請を参照する | 403 と共通エラーレスポンスを返す |
+| IT-REV-001 | `GET /api/reviews`, `/api/reviews/{id}` | APPROVER と USER が承認待ちを参照する | APPROVER は他人の `SUBMITTED` だけを一覧・詳細参照でき、自己申請は 400、USER は 403 となる |
 | IT-AUD-001 | `GET /api/audit-logs` | ADMIN が作成・申請・承認ログを検索する | 対象申請の監査ログを DB から取得できる |
 | IT-AUD-002 | `GET /api/audit-logs` | USER が監査ログを検索する | 403 と共通エラーレスポンスを返す |
 

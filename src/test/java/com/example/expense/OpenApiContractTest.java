@@ -24,6 +24,8 @@ class OpenApiContractTest {
             "/api/expense-applications/{id}/submit",
             "/api/expense-applications/{id}/approve",
             "/api/expense-applications/{id}/return",
+            "/api/reviews",
+            "/api/reviews/{id}",
             "/api/audit-logs",
             "/actuator/health"
     );

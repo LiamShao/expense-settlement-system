@@ -151,6 +151,41 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void review_結合テスト_APPROVERは他人の申請中だけ参照できる() throws Exception {
+        long submittedId = createApplication("承認待ち検索テスト", 1200, 800);
+        submitApplication(submittedId);
+        long ownApplicationId = insertApplicationForApprover();
+        jdbcTemplate.update(
+                "UPDATE expense_applications SET status = 'SUBMITTED', submitted_at = CURRENT_TIMESTAMP WHERE id = ?",
+                ownApplicationId
+        );
+
+        mockMvc.perform(get("/api/reviews")
+                        .with(httpBasic(APPROVER_EMAIL, PASSWORD))
+                        .param("keyword", "承認待ち"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(submittedId))
+                .andExpect(jsonPath("$.data.content[0].applicantId").value(1))
+                .andExpect(jsonPath("$.data.content[0].status").value("SUBMITTED"));
+
+        mockMvc.perform(get("/api/reviews/{id}", submittedId)
+                        .with(httpBasic(APPROVER_EMAIL, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(submittedId))
+                .andExpect(jsonPath("$.data.items.length()").value(2));
+
+        mockMvc.perform(get("/api/reviews/{id}", ownApplicationId)
+                        .with(httpBasic(APPROVER_EMAIL, PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+
+        mockMvc.perform(get("/api/reviews").with(httpBasic(USER_EMAIL, PASSWORD)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void auditLog_結合テスト_ADMINは業務操作ログを検索できる() throws Exception {
         long applicationId = createApplication("監査ログ結合テスト", 500, 700);
         submitApplication(applicationId);

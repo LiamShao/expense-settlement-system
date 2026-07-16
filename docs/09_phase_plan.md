@@ -39,19 +39,18 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 11 | 結合テスト / エビデンス | 完了 |
 | Phase 12 | GitHub Actions / production Dockerfile | 完了 |
 | Phase 13 | AWS architecture design | 完了 |
+| Phase 14A | MUI UI design / backend prerequisite / frontend foundation | 完了 |
 
-## 3. 後続フェーズ
+## 3. 進行中フェーズ
 
 | Phase | 内容 | 文書先行タスク |
 |---|---|---|
-| Phase 14 | React frontend | 画面一覧、画面遷移、項目定義、API 連携仕様を先に作成する。 |
+| Phase 14B | React frontend implementation | 共通基盤、業務画面、frontend test を実装する。 |
 
 ## 4. 次に実施する作業
 
-Phase 14 では、以下を実施する。
+Phase 14A では frontend 機能設計、MUI UI 仕様・wireframe、Review API、金額 validation、React / MUI foundation を完了した。Phase 14B で次を実施する。
 
-- React / TypeScript frontend の画面一覧と画面遷移を定義する。
-- Login、申請一覧、申請詳細、作成・編集、承認・差戻し、監査ログの画面項目を定義する。
-- Role と status に応じた表示・操作可否を定義する。
-- HTTP Basic 認証を含む既存 API との連携、error 表示、pagination の仕様を定義する。
-- frontend 設計承認後に実装と test を行う。
+- MUI theme、application layout、router、query、HTTP Basic authentication state、API client を実装する。
+- Login、申請一覧・詳細・作成・編集、承認待ち、監査ログを実装する。
+- Unit、component、API mock integration、主要 workflow の E2E test を実行し evidence を更新する。

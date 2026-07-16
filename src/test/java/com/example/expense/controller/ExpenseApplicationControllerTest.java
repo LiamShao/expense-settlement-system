@@ -25,6 +25,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -87,6 +88,31 @@ class ExpenseApplicationControllerTest {
                 .andExpect(jsonPath("$.data.totalAmount").value(1200));
 
         verify(expenseApplicationService).create(any(), argThat(principal -> principal.getId().equals(1L)));
+    }
+
+    @Test
+    void create_異常系_金額の小数は許可しない() throws Exception {
+        mockMvc.perform(post("/api/expense-applications")
+                        .with(user(securityUser()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "東京出張交通費",
+                                  "items": [
+                                    {
+                                      "expenseDate": "2026-07-13",
+                                      "category": "TRANSPORTATION",
+                                      "amount": 1200.5,
+                                      "description": "電車代"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details[0].field").value("items[0].amount"));
+
+        verifyNoInteractions(expenseApplicationService);
     }
 
     private SecurityUser securityUser() {

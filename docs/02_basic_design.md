@@ -2,11 +2,11 @@
 
 ## 1. システム構成
 
-本システムは Spring Boot による REST API と PostgreSQL による RDB で構成する。
+本システムは React / TypeScript による SPA、Spring Boot による REST API、PostgreSQL による RDB で構成する。frontend は設計済み・未実装である。
 
 ```text
-Client
-  ↓ HTTP
+Browser / React SPA（未実装）
+  ↓ HTTPS / JSON
 Spring Boot API
   ↓ MyBatis
 PostgreSQL
@@ -25,6 +25,8 @@ PostgreSQL
 | Entity | `entity` | DB テーブルに対応するオブジェクト。 |
 | DTO | `dto` | API リクエスト・レスポンス用オブジェクト。 |
 | Security | `security`, `config` | 認証・認可の基盤。 |
+
+Frontend は feature 単位で auth、expenses、reviews、audit logs を分離し、routing、server state、form、API client の責務を分ける。詳細は `docs/15_frontend_design.md` に定義する。
 
 ## 3. 認証方式
 
@@ -53,6 +55,7 @@ PostgreSQL
 | 申請 | `DRAFT` または `RETURNED` を `SUBMITTED` に変更する。 |
 | 承認 | `SUBMITTED` を `APPROVED` に変更する。 |
 | 差戻し | `SUBMITTED` を `RETURNED` に変更し、差戻し理由を保存する。 |
+| 承認待ち検索 | APPROVER / ADMIN が他人の `SUBMITTED` 申請を検索・詳細参照する。 |
 
 ## 5. 業務ルール
 
@@ -62,6 +65,7 @@ PostgreSQL
 | BR-EXP-002 | 合計金額はリクエストの明細金額合計から Service 層で算出する。 |
 | BR-EXP-003 | USER は他ユーザーの経費申請を参照・操作できない。 |
 | BR-EXP-004 | `DRAFT` / `RETURNED` のみ申請者が更新・削除できる。 |
+| BR-EXP-005 | 明細金額は 1 以上 999999999999 以下の整数円、申請合計は 999999999999 円以下とする。 |
 | BR-WF-001 | `DRAFT` / `RETURNED` のみ申請できる。 |
 | BR-WF-002 | `SUBMITTED` のみ承認・差戻しできる。 |
 | BR-WF-003 | 承認・差戻しは `APPROVER` / `ADMIN` のみ実行できる。 |
@@ -109,3 +113,22 @@ RDS PostgreSQL Multi-AZ（private database subnet / 2 AZ）
 - 領収書は private S3 bucket に保存する設計とするが、file upload/download は後続実装とする。
 - CloudWatch Logs、Metrics、Alarm と ECS deployment rollback、RDS backup/restore を運用設計に含める。
 - 詳細は `docs/14_aws_architecture_design.md` に定義する。AWS resource と deployment pipeline は未構築である。
+
+## 9. Frontend 構成
+
+```text
+Browser
+  ↓ React Router
+Page / feature component
+  ↓ query / form
+Shared API client
+  ↓ Authorization: Basic ... / JSON
+Spring Boot API
+```
+
+- Login、申請一覧・詳細・作成・編集、承認待ち、監査ログを SPA route として提供する。
+- Credential は browser storage に保存せず memory のみに保持し、reload 後は再 login とする。
+- Local は Vite proxy、production は reverse proxy により frontend と `/api` を same-origin で公開する。
+- Role / status による表示制御を行うが、最終的な認可は backend が実施する。
+- APPROVER / ADMIN の承認画面は `/api/reviews` と `/api/reviews/{id}` で他人の `SUBMITTED` 申請を参照する。
+- 詳細な画面項目、navigation、API、error、pagination、test 方針は `docs/15_frontend_design.md` に定義する。

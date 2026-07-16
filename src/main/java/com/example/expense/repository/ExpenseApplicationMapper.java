@@ -2,6 +2,7 @@ package com.example.expense.repository;
 
 import com.example.expense.common.enums.ExpenseStatus;
 import com.example.expense.dto.request.ExpenseApplicationSearchRequest;
+import com.example.expense.dto.request.ReviewSearchRequest;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
 import com.example.expense.entity.ExpenseApplication;
 import org.apache.ibatis.annotations.Mapper;
@@ -18,6 +19,16 @@ public interface ExpenseApplicationMapper {
     List<ExpenseApplicationSummaryResponse> search(@Param("condition") ExpenseApplicationSearchRequest condition);
 
     long countSearch(@Param("condition") ExpenseApplicationSearchRequest condition);
+
+    List<ExpenseApplicationSummaryResponse> searchReviews(
+            @Param("condition") ReviewSearchRequest condition,
+            @Param("reviewerId") Long reviewerId
+    );
+
+    long countReviews(
+            @Param("condition") ReviewSearchRequest condition,
+            @Param("reviewerId") Long reviewerId
+    );
 
     int insert(ExpenseApplication expenseApplication);
 

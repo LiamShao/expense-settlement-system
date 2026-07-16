@@ -4,7 +4,7 @@ info:
   description: |-
     日本企業の経費申請・承認フローを想定した REST API。
     `docs/openapi.yaml` を正式契約とし、Swagger UI と Prism Mock Server が同じ定義を利用する。
-  version: 0.2.0
+  version: 0.3.0
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -15,6 +15,8 @@ tags:
     description: 認証 API
   - name: ExpenseApplications
     description: 経費申請 API
+  - name: Reviews
+    description: 承認待ち API
   - name: AuditLogs
     description: 監査ログ API
   - name: Health
@@ -336,6 +338,101 @@ paths:
       responses:
         '200':
           description: 差戻し成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplicationDetailApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/reviews:
+    get:
+      tags:
+        - Reviews
+      summary: 承認待ち申請検索
+      description: APPROVER / ADMIN が、他人の SUBMITTED 申請を検索する。
+      operationId: searchReviews
+      security:
+        - basicAuth: []
+      parameters:
+        - name: applicantId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+          description: タイトル部分一致キーワード。
+        - name: expenseDateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: expenseDateTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 検索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplicationPageApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/reviews/{id}:
+    get:
+      tags:
+        - Reviews
+      summary: 承認待ち申請詳細取得
+      description: APPROVER / ADMIN が、他人の SUBMITTED 申請のヘッダと明細を取得する。
+      operationId: getReviewById
+      security:
+        - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ExpenseApplicationId'
+      responses:
+        '200':
+          description: 取得成功
           content:
             application/json:
               schema:
@@ -822,8 +919,10 @@ components:
         category:
           $ref: '#/components/schemas/ExpenseCategory'
         amount:
-          type: number
+          type: integer
+          format: int64
           minimum: 1
+          maximum: 999999999999
         description:
           type: string
           maxLength: 500
@@ -884,7 +983,8 @@ components:
         statusName:
           type: string
         totalAmount:
-          type: number
+          type: integer
+          format: int64
         submittedAt:
           type: string
           description: ISO-8601 local date-time
@@ -911,7 +1011,8 @@ components:
         statusName:
           type: string
         totalAmount:
-          type: number
+          type: integer
+          format: int64
         submittedAt:
           type: string
           description: ISO-8601 local date-time
@@ -956,7 +1057,8 @@ components:
         categoryName:
           type: string
         amount:
-          type: number
+          type: integer
+          format: int64
         description:
           type: string
         receiptObjectKey:

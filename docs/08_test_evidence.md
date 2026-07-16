@@ -4,7 +4,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| 実行日 | 2026-07-14 |
+| 実行日 | 2026-07-16 |
 | 実行環境 | Docker Compose / Testcontainers |
 | Java | Java 17 |
 | Gradle | Gradle 8.10.2 |
@@ -23,7 +23,7 @@ docker compose run --rm --no-deps --user 1000:0 \
 
 ```text
 BUILD SUCCESSFUL
-34 tests, 0 failures, 0 errors
+42 tests, 0 failures, 0 errors
 ```
 
 ## 4. 確認済みテスト
@@ -41,6 +41,11 @@ BUILD SUCCESSFUL
 | UT-EXP-009 | `returnApplication_正常系_承認者が申請中を差戻す` | OK | 差戻し状態、理由、監査ログ登録を確認。 |
 | UT-ADM-001 | `search_正常系_ADMINは全件検索できる` | OK | ADMIN は applicantId を強制設定されず検索できることを確認。 |
 | UT-ADM-002 | `getById_正常系_ADMINは他人の申請詳細を参照できる` | OK | ADMIN の他人申請詳細参照を確認。 |
+| UT-REV-001 | `searchReviews_正常系_APPROVERは他人の申請中を検索できる` | OK | Review 一覧と status 表示名を確認。 |
+| UT-REV-002 | `searchReviews_異常系_USERは検索できない` | OK | USER の Review 検索禁止を確認。 |
+| UT-REV-003 | `getReviewById_正常系_APPROVERは他人の申請中詳細を参照できる` | OK | APPROVER の承認対象詳細参照を確認。 |
+| UT-REV-004 | `getReviewById_異常系_自分の申請は参照できない` | OK | Review API からの自己申請参照禁止を確認。 |
+| UT-AMT-001 | `create_異常系_合計金額がDB上限を超える` | OK | 合計上限超過時に DB insert しないことを確認。 |
 | UT-AUD-001 | `submit_正常系_監査ログを登録する` | OK | 申請操作時の監査ログ登録を確認。 |
 | UT-AUD-002 | `search_正常系_ADMINは監査ログを検索できる` | OK | ADMIN の監査ログ検索を確認。 |
 | UT-AUD-003 | `search_異常系_USERは監査ログを検索できない` | OK | USER の監査ログ検索禁止を確認。 |
@@ -57,12 +62,15 @@ BUILD SUCCESSFUL
 | CT-CTRL-001 | `login_正常系_認証情報とユーザーを返す` | OK | Login API の正常レスポンスを確認。 |
 | CT-CTRL-002 | `create_正常系_作成した経費申請を返す` | OK | Create API の入力変換と正常レスポンスを確認。 |
 | CT-CTRL-003 | `search_正常系_検索条件と監査ログ一覧を返す` | OK | 監査ログ検索条件とページングレスポンスを確認。 |
+| CT-AMT-001 | `create_異常系_金額の小数は許可しない` | OK | 整数円 validation と field path を確認。 |
+| CT-REV-001 | `search_正常系_承認待ち申請を返す` | OK | Review query と page response の変換を確認。 |
 | IT-AUTH-001 | `login_結合テスト_DBユーザーでログインできる` | OK | Flyway seed user と BCrypt password によるログインを確認。 |
 | IT-AUTH-002 | `me_結合テスト_Basic認証ユーザーをDBから取得する` | OK | Basic 認証と DB ユーザー取得を確認。 |
 | IT-EXP-001 | `create_結合テスト_申請と明細と監査ログをDBへ保存する` | OK | ヘッダ、明細、合計金額、作成ログの永続化を確認。 |
 | IT-EXP-002 | `search_結合テスト_USERは本人のみADMINは全件参照できる` | OK | USER の本人限定検索と ADMIN の全件検索を確認。 |
 | IT-EXP-003 | `workflow_結合テスト_作成から申請と承認まで遷移する` | OK | DRAFT、SUBMITTED、APPROVED の遷移と承認者保存を確認。 |
 | IT-EXP-004 | `getById_結合テスト_USERは他人の申請を参照できない` | OK | 実 DB データに対する所有者権限を確認。 |
+| IT-REV-001 | `review_結合テスト_APPROVERは他人の申請中だけ参照できる` | OK | Review 一覧・詳細、自己除外、USER 禁止を実 DB で確認。 |
 | IT-AUD-001 | `auditLog_結合テスト_ADMINは業務操作ログを検索できる` | OK | 作成、申請、承認ログの保存と ADMIN 検索を確認。 |
 | IT-AUD-002 | `auditLog_結合テスト_USERは監査ログを参照できない` | OK | USER の監査ログ参照禁止を確認。 |
 
@@ -86,7 +94,26 @@ BUILD SUCCESSFUL
 
 production image は local Docker Desktop で build・起動確認した。GitHub Actions workflow 自体の実行結果は、workflow を GitHub へ push した後に初回 run で確認する。
 
-## 7. Phase 9 実行時確認
+## 7. Phase 14A frontend foundation verification
+
+| 確認項目 | 結果 |
+|---|---|
+| ESLint | OK |
+| TypeScript typecheck | OK |
+| Vitest foundation test | 1 test、0 failures |
+| Vite production build | OK、898 modules transformed |
+
+実行コマンド:
+
+```bash
+cd frontend
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+## 8. Phase 9 実行時確認
 
 | 確認項目 | 結果 |
 |---|---|
@@ -98,6 +125,6 @@ production image は local Docker Desktop で build・起動確認した。GitHu
 | Mock 未認証リクエスト | 401 Unauthorized |
 | Mock Basic Auth リクエスト | 200 OK |
 
-## 8. 補足
+## 9. 補足
 
 本エビデンスは自動テスト実行結果の要約である。SIer 形式の詳細エビデンスとして提出する場合は、対象テスト、入力値、期待値、実行結果、ログまたはスクリーンショットをケース単位で追加する。

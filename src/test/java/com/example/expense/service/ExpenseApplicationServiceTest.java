@@ -5,7 +5,9 @@ import com.example.expense.common.enums.ExpenseStatus;
 import com.example.expense.common.enums.RoleType;
 import com.example.expense.dto.request.ExpenseItemRequest;
 import com.example.expense.dto.request.ExpenseApplicationSearchRequest;
+import com.example.expense.dto.request.CreateExpenseApplicationRequest;
 import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
+import com.example.expense.dto.request.ReviewSearchRequest;
 import com.example.expense.dto.request.UpdateExpenseApplicationRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
@@ -132,6 +134,83 @@ class ExpenseApplicationServiceTest {
 
         assertThat(response.getId()).isEqualTo(10L);
         assertThat(response.getApplicant().getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void searchReviews_正常系_APPROVERは他人の申請中を検索できる() {
+        User approver = user(2L, RoleType.APPROVER);
+        ReviewSearchRequest request = new ReviewSearchRequest();
+        ExpenseApplicationSummaryResponse summary = new ExpenseApplicationSummaryResponse();
+        summary.setId(10L);
+        summary.setApplicantId(1L);
+        summary.setStatus(ExpenseStatus.SUBMITTED);
+
+        when(expenseApplicationMapper.searchReviews(request, 2L)).thenReturn(List.of(summary));
+        when(expenseApplicationMapper.countReviews(request, 2L)).thenReturn(1L);
+
+        var response = service.searchReviews(request, new SecurityUser(approver));
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getStatusName()).isEqualTo("申請中");
+        verify(expenseApplicationMapper).searchReviews(request, 2L);
+    }
+
+    @Test
+    void searchReviews_異常系_USERは検索できない() {
+        User user = user(1L, RoleType.USER);
+        ReviewSearchRequest request = new ReviewSearchRequest();
+
+        assertThatThrownBy(() -> service.searchReviews(request, new SecurityUser(user)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        verify(expenseApplicationMapper, never()).searchReviews(any(), any());
+    }
+
+    @Test
+    void getReviewById_正常系_APPROVERは他人の申請中詳細を参照できる() {
+        ExpenseApplication submitted = application(10L, 1L, ExpenseStatus.SUBMITTED);
+        User applicant = user(1L, RoleType.USER);
+        User approver = user(2L, RoleType.APPROVER);
+
+        when(expenseApplicationMapper.findById(10L)).thenReturn(submitted);
+        when(userMapper.findById(1L)).thenReturn(applicant);
+        when(expenseItemMapper.findByApplicationId(10L)).thenReturn(List.of());
+
+        ExpenseApplicationDetailResponse response = service.getReviewById(10L, new SecurityUser(approver));
+
+        assertThat(response.getId()).isEqualTo(10L);
+        assertThat(response.getStatus()).isEqualTo(ExpenseStatus.SUBMITTED);
+    }
+
+    @Test
+    void getReviewById_異常系_自分の申請は参照できない() {
+        ExpenseApplication submitted = application(10L, 2L, ExpenseStatus.SUBMITTED);
+        User approver = user(2L, RoleType.APPROVER);
+
+        when(expenseApplicationMapper.findById(10L)).thenReturn(submitted);
+
+        assertThatThrownBy(() -> service.getReviewById(10L, new SecurityUser(approver)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(userMapper, never()).findById(any());
+    }
+
+    @Test
+    void create_異常系_合計金額がDB上限を超える() {
+        User applicant = user(1L, RoleType.USER);
+        CreateExpenseApplicationRequest request = new CreateExpenseApplicationRequest();
+        request.setTitle("高額申請");
+        request.setItems(List.of(
+                expenseItem("600000000000"),
+                expenseItem("600000000000")
+        ));
+
+        assertThatThrownBy(() -> service.create(request, new SecurityUser(applicant)))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("999999999999円以下");
+        verify(expenseApplicationMapper, never()).insert(any());
     }
 
     @Test
@@ -290,15 +369,20 @@ class ExpenseApplicationServiceTest {
     }
 
     private UpdateExpenseApplicationRequest updateRequest() {
-        ExpenseItemRequest item = new ExpenseItemRequest();
-        item.setExpenseDate(LocalDate.of(2026, 7, 13));
-        item.setCategory(ExpenseCategory.TRANSPORTATION);
-        item.setAmount(BigDecimal.valueOf(2500));
-        item.setDescription("新幹線代");
+        ExpenseItemRequest item = expenseItem("2500");
 
         UpdateExpenseApplicationRequest request = new UpdateExpenseApplicationRequest();
         request.setTitle("更新後の出張交通費");
         request.setItems(List.of(item));
         return request;
+    }
+
+    private ExpenseItemRequest expenseItem(String amount) {
+        ExpenseItemRequest item = new ExpenseItemRequest();
+        item.setExpenseDate(LocalDate.of(2026, 7, 13));
+        item.setCategory(ExpenseCategory.TRANSPORTATION);
+        item.setAmount(new BigDecimal(amount));
+        item.setDescription("新幹線代");
+        return item;
     }
 }

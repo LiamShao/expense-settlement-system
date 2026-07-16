@@ -136,7 +136,7 @@ Request:
 | `items` | array | YES | not empty |
 | `items[].expenseDate` | date | YES | 利用日 |
 | `items[].category` | string | YES | `TRANSPORTATION` / `MEAL` / `SUPPLIES` / `ACCOMMODATION` / `OTHER` |
-| `items[].amount` | number | YES | min 1 |
+| `items[].amount` | integer | YES | min 1, max 999999999999。整数円のみ。 |
 | `items[].description` | string | YES | not blank, max 500 |
 | `items[].receiptObjectKey` | string | NO | max 500 |
 
@@ -203,9 +203,46 @@ Request:
 - 自分の申請は差戻しできない。
 - `SUBMITTED` 以外は差戻しできない。
 
-## 4. 監査ログ API
+作成・更新とも、明細合計は `999999999999` 円以下とする。合計金額は backend が算出する。
 
-### 4.1 監査ログ検索
+## 4. 承認待ち API
+
+### 4.1 承認待ち一覧検索
+
+| 項目 | 内容 |
+|---|---|
+| Method | GET |
+| Path | `/api/reviews` |
+| 認証 | 必要 |
+| 概要 | APPROVER / ADMIN が他人の `SUBMITTED` 申請を検索する。自己申請は結果に含めない。 |
+
+Query:
+
+| 項目 | 型 | 必須 | 制約・概要 |
+|---|---|---|---|
+| `applicantId` | number | NO | 申請者 ID |
+| `keyword` | string | NO | max 200。タイトル部分一致。 |
+| `expenseDateFrom` | date | NO | 明細利用日 From |
+| `expenseDateTo` | date | NO | 明細利用日 To |
+| `page` | number | NO | min 0, default 0 |
+| `size` | number | NO | min 1, max 100, default 20 |
+
+### 4.2 承認待ち詳細取得
+
+| 項目 | 内容 |
+|---|---|
+| Method | GET |
+| Path | `/api/reviews/{id}` |
+| 認証 | 必要 |
+| 概要 | APPROVER / ADMIN が他人の `SUBMITTED` 申請ヘッダと明細を取得する。 |
+
+- USER は利用できない。
+- 自己申請および `SUBMITTED` 以外の申請は取得できない。
+- 承認・差戻し自体は既存 workflow endpoint を利用する。
+
+## 5. 監査ログ API
+
+### 5.1 監査ログ検索
 
 | 項目 | 内容 |
 |---|---|
@@ -237,7 +274,7 @@ Query:
 | `EXPENSE_APPLICATION_APPROVE` | `EXPENSE_APPLICATION` | 経費申請承認 |
 | `EXPENSE_APPLICATION_RETURN` | `EXPENSE_APPLICATION` | 経費申請差戻し |
 
-## 5. ヘルスチェック
+## 6. ヘルスチェック
 
 | 項目 | 内容 |
 |---|---|

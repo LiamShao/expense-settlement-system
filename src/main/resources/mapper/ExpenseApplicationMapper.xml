@@ -76,6 +76,35 @@
         </where>
     </sql>
 
+    <sql id="ReviewWhere">
+        <where>
+            ea.status = 'SUBMITTED'
+            AND ea.applicant_id &lt;&gt; #{reviewerId}
+            <if test="condition.applicantId != null">
+                AND ea.applicant_id = #{condition.applicantId}
+            </if>
+            <if test="condition.keyword != null and condition.keyword != ''">
+                AND ea.title ILIKE CONCAT('%', #{condition.keyword}, '%')
+            </if>
+            <if test="condition.expenseDateFrom != null">
+                AND EXISTS (
+                    SELECT 1
+                    FROM expense_items ei_from
+                    WHERE ei_from.expense_application_id = ea.id
+                      AND ei_from.expense_date &gt;= #{condition.expenseDateFrom}
+                )
+            </if>
+            <if test="condition.expenseDateTo != null">
+                AND EXISTS (
+                    SELECT 1
+                    FROM expense_items ei_to
+                    WHERE ei_to.expense_application_id = ea.id
+                      AND ei_to.expense_date &lt;= #{condition.expenseDateTo}
+                )
+            </if>
+        </where>
+    </sql>
+
     <select id="findById" resultMap="ExpenseApplicationResultMap">
         SELECT
             <include refid="ExpenseApplicationColumns"/>
@@ -107,6 +136,32 @@
         FROM expense_applications ea
         INNER JOIN users u ON u.id = ea.applicant_id
         <include refid="SearchWhere"/>
+    </select>
+
+    <select id="searchReviews" resultMap="ExpenseApplicationSummaryResultMap">
+        SELECT
+            ea.id,
+            ea.applicant_id,
+            u.name AS applicant_name,
+            ea.title,
+            ea.status,
+            ea.total_amount,
+            ea.submitted_at,
+            ea.created_at,
+            ea.updated_at
+        FROM expense_applications ea
+        INNER JOIN users u ON u.id = ea.applicant_id
+        <include refid="ReviewWhere"/>
+        ORDER BY ea.submitted_at ASC, ea.id ASC
+        LIMIT #{condition.size}
+        OFFSET #{condition.offset}
+    </select>
+
+    <select id="countReviews" resultType="long">
+        SELECT COUNT(*)
+        FROM expense_applications ea
+        INNER JOIN users u ON u.id = ea.applicant_id
+        <include refid="ReviewWhere"/>
     </select>
 
     <insert id="insert" parameterType="com.example.expense.entity.ExpenseApplication" useGeneratedKeys="true" keyProperty="id">

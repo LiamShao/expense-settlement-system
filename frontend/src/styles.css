@@ -1,0 +1,12 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP", "Yu Gothic UI",
+    "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
