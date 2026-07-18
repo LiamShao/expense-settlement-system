@@ -1,23 +1,40 @@
+x-java-service: &java-service
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+  working_dir: /workspace
+  volumes:
+    - .:/workspace
+    - gradle-cache:/home/gradle/.gradle
+  environment:
+    TZ: Asia/Tokyo
+    SPRING_PROFILES_ACTIVE: local
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/expense_db
+    SPRING_DATASOURCE_USERNAME: expense_user
+    SPRING_DATASOURCE_PASSWORD: expense_password
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
-  java-dev:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    container_name: expense-java-dev
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-      - gradle-cache:/home/gradle/.gradle
-    environment:
-      TZ: Asia/Tokyo
-      SPRING_PROFILES_ACTIVE: local
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/expense_db
-      SPRING_DATASOURCE_USERNAME: expense_user
-      SPRING_DATASOURCE_PASSWORD: expense_password
+  backend:
+    <<: *java-service
+    container_name: expense-backend
     ports:
       - "8080:8080"
-    depends_on:
-      - postgres
+    command: ./gradlew --no-daemon bootRun
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  java-dev:
+    <<: *java-service
+    profiles:
+      - tools
+    container_name: expense-java-dev
     stdin_open: true
     tty: true
     command: bash

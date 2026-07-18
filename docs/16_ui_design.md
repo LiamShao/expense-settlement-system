@@ -104,7 +104,7 @@ Desktop (`lg` 以上):
 - Permanent sidebar 240px、top header 64px とする。
 - Content は padding 24px、最大幅 1440px とし、広すぎる form は 960px に制限する。
 - Sidebar menu は role により表示制御し、active item は左 border と soft blue background で示す。
-- Header 右側に user name、role chip、logout を配置する。
+- Header 右側に user name、role chip、logout を配置する。logout は確認 dialog で cancel / confirm を選択できる。
 
 Tablet / narrow desktop (`md` 未満):
 

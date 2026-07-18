@@ -37,20 +37,17 @@ API / DB / 権限 / 状態遷移仕様更新
 | Phase 9 | OpenAPI / Swagger 詳細化 | 完了 |
 | Phase 10 | テストコード拡充 | 完了 |
 | Phase 11 | 結合テスト / エビデンス | 完了 |
-| Phase 12 | GitHub Actions / production Dockerfile | 完了 |
+| Phase 12 | CI design / production Dockerfile | 完了（remote workflow は削除済み） |
 | Phase 13 | AWS architecture design | 完了 |
 | Phase 14A | MUI UI design / backend prerequisite / frontend foundation | 完了 |
+| Phase 14B | React frontend implementation / frontend test | 完了 |
 
 ## 3. 進行中フェーズ
 
-| Phase | 内容 | 文書先行タスク |
-|---|---|---|
-| Phase 14B | React frontend implementation | 共通基盤、業務画面、frontend test を実装する。 |
+現在、進行中のフェーズはない。
 
 ## 4. 次に実施する作業
 
-Phase 14A では frontend 機能設計、MUI UI 仕様・wireframe、Review API、金額 validation、React / MUI foundation を完了した。Phase 14B で次を実施する。
+Phase 14B では MUI application、in-memory Basic authentication、全業務画面、logout confirmation を含む 35 frontend tests、実 DB を利用した三 role Playwright E2E workflow を完了し、最終 regression と local commit まで実施した。
 
-- MUI theme、application layout、router、query、HTTP Basic authentication state、API client を実装する。
-- Login、申請一覧・詳細・作成・編集、承認待ち、監査ログを実装する。
-- Unit、component、API mock integration、主要 workflow の E2E test を実行し evidence を更新する。
+次の実装 phase は未定義である。後続候補は production authentication（JWT / OIDC / secure cookie）、領収書 file API、AWS IaC / deployment 実装であり、開始前に要件と scope を確定する。Remote CI は利用者の判断で削除済みのため、明示的な方針変更なしに復元しない。

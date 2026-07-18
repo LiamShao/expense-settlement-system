@@ -4,7 +4,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| 実行日 | 2026-07-16 |
+| 実行日 | 2026-07-18 |
 | 実行環境 | Docker Compose / Testcontainers |
 | Java | Java 17 |
 | Gradle | Gradle 8.10.2 |
@@ -16,7 +16,7 @@
 docker compose run --rm --no-deps --user 1000:0 \
   -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  java-dev ./gradlew --no-daemon test
+  java-dev ./gradlew --no-daemon test --rerun-tasks
 ```
 
 ## 3. 実行結果
@@ -92,7 +92,7 @@ BUILD SUCCESSFUL
 | full regression | 34 tests、0 failures、0 errors、0 skipped |
 | GitHub Actions workflow 構文 | YAML parse、`git diff --check` OK |
 
-production image は local Docker Desktop で build・起動確認した。GitHub Actions workflow 自体の実行結果は、workflow を GitHub へ push した後に初回 run で確認する。
+production image は local Docker Desktop で build・起動確認した。GitHub Actions workflow は後に remote から削除され、現在は ignore された local-only file のため remote run は未実施である。
 
 ## 7. Phase 14A frontend foundation verification
 
@@ -113,7 +113,60 @@ pnpm test
 pnpm build
 ```
 
-## 8. Phase 9 実行時確認
+## 8. Phase 14B frontend application verification
+
+実行日時: 2026-07-18 20:15 JST
+
+| 確認項目 | 結果 |
+|---|---|
+| 実行環境 | Node.js 23.9.0 / pnpm 10.5.2 / Playwright 1.61.1 / Chromium 149 |
+| ESLint | OK、warning なし |
+| TypeScript typecheck | OK |
+| Vitest / Testing Library / MSW | 3 files、34 tests、0 failures |
+| Role / status matrix | USER / APPROVER / ADMIN × DRAFT / SUBMITTED / APPROVED / RETURNED の本人・他人操作を table-driven test で確認 |
+| Authentication integration | Login → `/api/auth/me` → Basic 認証付き一覧取得、localStorage / sessionStorage 非保存を MSW で確認 |
+| Form component | 新規申請の件名、利用日、金額、内容の必須 validation を確認 |
+| Vite production build | OK、1069 modules transformed、business route / application layout を lazy-loaded chunk に分割 |
+| Playwright E2E | Chromium 1 scenario passed、test 21.5 秒 / run 25.0 秒 |
+
+Playwright は Docker PostgreSQL 16.14 と Spring Boot API を実際に起動し、次の serial workflow を確認した。
+
+1. USER が経費申請を作成、編集、申請する。
+2. USER が別申請を作成、申請する。
+3. APPROVER が 1 件を承認し、1 件を理由付きで差戻す。
+4. USER が差戻し状態と差戻し理由を確認する。
+5. ADMIN が承認・差戻し action の監査ログを検索する。
+
+E2E の初回調整では deep link login と logout の navigation race を検出し、元 route 復帰と logout 順序を修正した。最終 regression は修正後の source で成功した。E2E は一意な件名を使用するため再実行可能だが、local `postgres-data` volume に申請と監査ログを追加する。
+
+実行コマンド:
+
+```bash
+cd frontend
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm e2e
+```
+
+Phase 14B closure verification（2026-07-18 21:01 JST）:
+
+| 確認項目 | 結果 |
+|---|---|
+| ESLint | OK、warning なし |
+| TypeScript typecheck | OK |
+| Vitest / Testing Library / MSW | 3 files、35 tests、0 failures |
+| Logout confirmation | cancel では session / current route を維持し、confirm で `/login` へ遷移することを確認 |
+| Vite production build | OK、1069 modules transformed |
+| Backend full regression | 42 tests、0 failures、0 errors、0 skipped、`BUILD SUCCESSFUL` |
+| Docker Compose smoke | PostgreSQL health 完了後に Spring Boot が自動起動し、backend health が `UP` |
+| Playwright E2E | Chromium 1 scenario passed、test 24.5 秒 / run 29.3 秒。logout confirmation を含む全 role workflow を確認 |
+| Local E2E data | `E2E%` 申請 12 → 14 件、関連監査ログ 41 → 48 件。既存 data は削除していない |
+
+Backend full regression の初回実行は、起動中の `backend` と test container が共有 Gradle cache を使用したため lock timeout で build 開始前に失敗した。`backend` を停止して同一 test command を再実行し、42 tests が成功した。これは code / test failure ではなく local process contention であり、README の test 手順にも backend を先に停止する前提を記載している。
+
+## 9. Phase 9 実行時確認
 
 | 確認項目 | 結果 |
 |---|---|
@@ -125,6 +178,6 @@ pnpm build
 | Mock 未認証リクエスト | 401 Unauthorized |
 | Mock Basic Auth リクエスト | 200 OK |
 
-## 9. 補足
+## 10. 補足
 
 本エビデンスは自動テスト実行結果の要約である。SIer 形式の詳細エビデンスとして提出する場合は、対象テスト、入力値、期待値、実行結果、ログまたはスクリーンショットをケース単位で追加する。

@@ -9,7 +9,7 @@ Phase 14 は次の二段階で進める。
 1. 本書と関連文書を整備し、既存 API との整合性と不足 API を確定する。
 2. 設計承認後、不足 API を補完してから React application と frontend test を実装する。
 
-本書作成時点では frontend application は未実装である。AWS resource、JWT / OIDC、領収書 upload / download も対象外とする。
+Phase 14B で frontend application を実装済みである。AWS resource、JWT / OIDC、領収書 upload / download は引き続き対象外とする。
 
 ## 2. 前提と設計方針
 
@@ -65,6 +65,7 @@ frontend/src/
 | SCR-EXP-003 | 申請作成 | `/expenses/new` | USER / APPROVER / ADMIN | 明細を入力し、下書きを作成する。 |
 | SCR-EXP-004 | 申請編集 | `/expenses/:id/edit` | 申請者本人 | `DRAFT` / `RETURNED` の申請を更新する。 |
 | SCR-REV-001 | 承認待ち一覧 | `/reviews` | APPROVER / ADMIN | 他人の `SUBMITTED` 申請を検索する。 |
+| SCR-REV-002 | 承認待ち詳細 | `/reviews/:id` | APPROVER / ADMIN | Review API で他人の `SUBMITTED` 申請を確認し、承認・差戻しを行う。 |
 | SCR-AUD-001 | 監査ログ | `/audit-logs` | ADMIN | 業務操作ログを検索する。 |
 | SCR-ERR-001 | Not Found | `*` | 全利用者 | 不正な URL から安全な遷移先を案内する。 |
 
@@ -109,7 +110,7 @@ Header には system name、login user name、role name、logout を表示する
 
 HTTP Basic は logout、期限、refresh token を提供しない。Phase 14 では password と Authorization value を browser storage、cookie、URL、log に永続化せず、JavaScript memory のみに保持する。page reload / tab close 後は再 login とする。
 
-Logout は memory 上の credential、user state、query cache を破棄し、`/login` へ遷移する。production 公開前には JWT / OIDC と secure cookie を含む認証方式を別 Phase で再設計する。
+Logout button は確認 dialog を表示し、cancel では session と current route を維持する。confirm 後にだけ memory 上の credential、user state、query cache を破棄し、`/login` へ遷移する。production 公開前には JWT / OIDC と secure cookie を含む認証方式を別 Phase で再設計する。
 
 ### 6.3 Network 前提
 
@@ -281,6 +282,8 @@ Toast だけに重要な error を依存させず、form / page 内にも残る 
 
 最低限、全 role と全 status の action visibility を table-driven test で網羅する。E2E は不足 API 対応後、実 DB を利用して自己承認禁止と role boundary も検証する。
 
+Phase 14B では Vitest / Testing Library / MSW で 35 tests を実装し、全 role / status の action matrix、ログインからの Basic 認証 request、browser storage 非保存、logout confirmation、必須 form validation を検証した。Playwright では実 PostgreSQL API に対して USER の作成・編集・申請、APPROVER の承認・差戻し、USER の差戻し理由確認、ADMIN の監査ログ検索を 1 本の serial workflow として検証した。
+
 ## 13. Phase 14A backend 対応
 
 ### 13.1 承認対象の参照 API
@@ -314,3 +317,9 @@ GET /api/reviews/{id}
 - React / TypeScript application が Login、申請 CRUD / submit、review、監査ログを提供する。
 - Unit / component / integration test が成功し、主要 role workflow の E2E evidence が残っている。
 - README、要件、基本設計、権限、OpenAPI、test 仕様、phase plan が実装結果と一致している。
+
+## 15. Phase 14B 実装結果
+
+Phase 14B で本書の application layout、route、in-memory authentication、API client、共通 component、全業務画面を実装した。Password と Authorization value は React memory のみに保持し、logout、401、reload で破棄する。Business page は route 単位で lazy load し、search condition と pagination は URL query と同期する。
+
+承認待ち詳細は `/api/reviews/{id}` と対応する `/reviews/:id` を利用する。これにより APPROVER が既存の本人限定 `/api/expense-applications/{id}` を経由せず、直 URL と reload を含めて承認対象を参照できる。
