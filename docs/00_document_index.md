@@ -24,6 +24,7 @@
 | 14 | [AWS アーキテクチャ設計書](14_aws_architecture_design.md) | AWS 上の network、compute、database、storage、security、monitoring、運用責任を定義する。 |
 | 15 | [フロントエンド設計書](15_frontend_design.md) | React / TypeScript frontend の画面、navigation、項目、権限、API 連携、error、test 方針を定義する。 |
 | 16 | [MUI UI デザイン仕様書](16_ui_design.md) | MUI theme、layout、component 方針、responsive rule、主要画面 wireframe を定義する。 |
+| ADR | [Architecture Decision Records](adr/README.md) | 重要な architecture decision、その選択理由、trade-off、再検討条件を記録する。 |
 | API | [OpenAPI定義](openapi.yaml) | 実装済み API の機械可読な契約を定義する。 |
 
 ## 文書更新ルール
@@ -32,3 +33,4 @@
 - 実装後に、テスト仕様とエビデンスを更新する。
 - 仕様と実装が異なる場合は、実装を直すか、仕様変更として文書を更新する。
 - 未実装の内容は `未実装` または `後続対応` と明記する。
+- Accepted ADR の decision を変更する場合は既存 ADR を上書きせず、新しい ADR で supersede する。

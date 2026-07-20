@@ -34,7 +34,7 @@ Phase 14A で以下を採用し、実装時の version は `frontend/package.jso
 | Server state | TanStack Query | API request、cache、再取得、mutation state |
 | Form | React Hook Form | 入力状態と明細行の動的追加・削除 |
 | Validation | Zod | client validation と form type の共有 |
-| HTTP client | Fetch wrapper | Basic header、共通 response、error 変換 |
+| HTTP client | Fetch wrapper | Same-origin cookie、CSRF header、共通 response、error 変換 |
 | Unit / component test | Vitest + React Testing Library | component、hook、権限制御の検証 |
 | API mock | MSW | 正常系・異常系の UI test |
 | E2E | Playwright | login から主要 workflow までの検証 |
@@ -101,23 +101,24 @@ Header には system name、login user name、role name、logout を表示する
 
 ### 6.1 Login flow
 
-1. `/api/auth/login` に email / password を送信し、credential を検証する。
-2. 成功後、同じ credential から `Authorization: Basic ...` を生成し、認証が必要な request に付与する。
-3. `/api/auth/me` の user 情報を authentication state に保持する。
+1. Application 起動時に `/api/auth/me` を実行し、有効な `SESSION` cookie があれば user state を復元する。
+2. Login 前の unsafe request として `/api/auth/csrf` から token/header name を取得する。
+3. `/api/auth/login` に email / password と CSRF header を送信し、成功 response の user を authentication state に保持する。
 4. Login 前に保護 route へ遷移していた場合は元の route、それ以外は `/expenses` へ遷移する。
+5. Login 後の request は browser が同一 origin の `SESSION` cookie を自動送信し、unsafe method には memory 上の CSRF token を付与する。
 
 ### 6.2 Credential 保持
 
-HTTP Basic は logout、期限、refresh token を提供しない。Phase 14 では password と Authorization value を browser storage、cookie、URL、log に永続化せず、JavaScript memory のみに保持する。page reload / tab close 後は再 login とする。
+Phase 15 では HTTP Basic credential の生成・保持を削除する。Password は login request の間だけ form state に存在し、session ID は `HttpOnly` cookie のため JavaScript から参照しない。CSRF token は JavaScript memory のみに保持し、browser storage、URL、log、analytics に保存しない。Page reload 後は `/api/auth/me` で有効 session を復元する。
 
-Logout button は確認 dialog を表示し、cancel では session と current route を維持する。confirm 後にだけ memory 上の credential、user state、query cache を破棄し、`/login` へ遷移する。production 公開前には JWT / OIDC と secure cookie を含む認証方式を別 Phase で再設計する。
+Logout button は確認 dialog を表示し、cancel では session と current route を維持する。Confirm 後に `/api/auth/logout` を CSRF header 付きで呼び、成功後だけ user state、CSRF token、query cache を破棄して `/login` へ遷移する。401 では local authentication state を破棄し、session expiry message を表示する。
 
 ### 6.3 Network 前提
 
 - Local development は Vite proxy で `/api` を Spring Boot に転送し、same-origin として扱う。
 - Production は ALB または reverse proxy で SPA と `/api` を同一 origin に公開する。
 - 現在の backend に CORS 設定がないため、frontend と API を別 origin で公開しない。
-- Basic credential を扱う全環境で HTTPS を必須とする。local loopback のみ HTTP を許容する。
+- Production session cookie は `Secure` を必須とする。Local loopback のみ `Secure=false` を許容する。
 
 ## 7. 画面項目
 
@@ -282,7 +283,7 @@ Toast だけに重要な error を依存させず、form / page 内にも残る 
 
 最低限、全 role と全 status の action visibility を table-driven test で網羅する。E2E は不足 API 対応後、実 DB を利用して自己承認禁止と role boundary も検証する。
 
-Phase 14B では Vitest / Testing Library / MSW で 35 tests を実装し、全 role / status の action matrix、ログインからの Basic 認証 request、browser storage 非保存、logout confirmation、必須 form validation を検証した。Playwright では実 PostgreSQL API に対して USER の作成・編集・申請、APPROVER の承認・差戻し、USER の差戻し理由確認、ADMIN の監査ログ検索を 1 本の serial workflow として検証した。
+Phase 14B では Vitest / Testing Library / MSW で 35 tests を実装した。Phase 15 では Basic credential を削除し、36 tests で CSRF header、same-origin cookie mode、reload 時の session 復元、server logout 後の local state 破棄を含めて検証した。Playwright では実 PostgreSQL API に対して reload 後の session 継続、USER の作成・編集・申請、APPROVER の承認・差戻し、USER の差戻し理由確認、ADMIN の監査ログ検索・logout を 1 本の serial workflow として検証した。
 
 ## 13. Phase 14A backend 対応
 
@@ -323,3 +324,9 @@ GET /api/reviews/{id}
 Phase 14B で本書の application layout、route、in-memory authentication、API client、共通 component、全業務画面を実装した。Password と Authorization value は React memory のみに保持し、logout、401、reload で破棄する。Business page は route 単位で lazy load し、search condition と pagination は URL query と同期する。
 
 承認待ち詳細は `/api/reviews/{id}` と対応する `/reviews/:id` を利用する。これにより APPROVER が既存の本人限定 `/api/expense-applications/{id}` を経由せず、直 URL と reload を含めて承認対象を参照できる。
+
+## 16. Phase 15 実装結果
+
+Phase 15 で frontend の Basic credential state と `Authorization` header を削除し、Spring Session JDBC の opaque cookie を browser に委ねる方式へ移行した。Application 起動時は `/api/auth/me` の完了まで route guard を loading state とし、有効 session があれば reload 後も元の業務画面を表示する。
+
+API client は unsafe method の直前に `/api/auth/csrf` から token を取得し、module memory のみに保持する。`CSRF_INVALID` では token を破棄して 1 回だけ再取得・再送し、無限 retry は行わない。Logout は server response 成功後に user state、TanStack Query cache、CSRF token を破棄する。

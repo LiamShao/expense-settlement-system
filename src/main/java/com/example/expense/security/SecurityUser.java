@@ -1,14 +1,20 @@
 package com.example.expense.security;
 
 import com.example.expense.entity.User;
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.io.Serial;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
-public class SecurityUser implements UserDetails {
+public class SecurityUser implements UserDetails, CredentialsContainer {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     private final User user;
 
@@ -30,6 +36,10 @@ public class SecurityUser implements UserDetails {
 
     public String getEmail() {
         return user.getEmail();
+    }
+
+    public com.example.expense.common.enums.RoleType getRole() {
+        return user.getRole();
     }
 
     @Override
@@ -54,7 +64,8 @@ public class SecurityUser implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        LocalDateTime lockedUntil = user.getLockedUntil();
+        return lockedUntil == null || !lockedUntil.isAfter(LocalDateTime.now());
     }
 
     @Override
@@ -65,5 +76,10 @@ public class SecurityUser implements UserDetails {
     @Override
     public boolean isEnabled() {
         return Boolean.TRUE.equals(user.getEnabled());
+    }
+
+    @Override
+    public void eraseCredentials() {
+        user.setPassword(null);
     }
 }

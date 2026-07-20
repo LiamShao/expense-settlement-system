@@ -28,6 +28,12 @@ export interface AuthResponse {
   user: User
 }
 
+export interface CsrfTokenResponse {
+  headerName: string
+  parameterName: string
+  token: string
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number

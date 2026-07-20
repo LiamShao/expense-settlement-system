@@ -1,5 +1,7 @@
 # テストエビデンス
 
+Sections 1–4 は Phase 11 時点の baseline evidence である。最新の full regression は Section 9 の Phase 15 evidence を参照する。
+
 ## 1. 実行環境
 
 | 項目 | 内容 |
@@ -166,7 +168,53 @@ Phase 14B closure verification（2026-07-18 21:01 JST）:
 
 Backend full regression の初回実行は、起動中の `backend` と test container が共有 Gradle cache を使用したため lock timeout で build 開始前に失敗した。`backend` を停止して同一 test command を再実行し、42 tests が成功した。これは code / test failure ではなく local process contention であり、README の test 手順にも backend を先に停止する前提を記載している。
 
-## 9. Phase 9 実行時確認
+## 9. Phase 15 production authentication verification
+
+実行日時: 2026-07-20 19:35–19:57 JST
+
+| 確認項目 | 結果 |
+|---|---|
+| Backend full regression | 50 tests、0 failures、0 errors、`BUILD SUCCESSFUL` |
+| Authentication integration | Spring Session JDBC persistence、`HttpOnly` / `SameSite=Lax` cookie、login 時 session ID rotation、logout 後の旧 session 拒否を確認 |
+| Cookie profile | Default は `Secure=true`、`local` profile だけ `Secure=false`。Local response は cookie 値を伏せた header で `HttpOnly; SameSite=Lax` を確認 |
+| Security integration | HTTP Basic 拒否、CSRF 不足時の `CSRF_INVALID`、5 回失敗時の 15 分 lock、role boundary を確認 |
+| ESLint | OK、warning なし |
+| TypeScript typecheck | OK |
+| Vitest / Testing Library / MSW | 3 files、36 tests、0 failures |
+| Frontend authentication | CSRF header、same-origin cookie mode、reload session restore、server logout 後の state clear を確認 |
+| Vite production build | OK、1069 modules transformed |
+| Docker Compose / Flyway | PostgreSQL と backend が healthy、V4 migration `add production authentication` 適用成功 |
+| `GET /actuator/health` | 200 / `UP` |
+| Playwright E2E | Chromium 1 scenario passed、test 22.6 秒 / run 28.4 秒 |
+| E2E authentication | USER login 後の browser reload、各 role の server logout、三 role workflow を real PostgreSQL API で確認 |
+| Local E2E data | Phase 15 の二回の最終確認で `E2E%` 申請 14 → 18 件、関連監査ログ 48 → 62 件。既存 data は削除していない |
+
+Backend test command:
+
+```bash
+docker compose run --rm --no-deps --user 1000:0 \
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
+  -e 'JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dhttps.protocols=TLSv1.2 -Djdk.tls.client.protocols=TLSv1.2' \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  java-dev ./gradlew --no-daemon --console=plain test --rerun-tasks
+```
+
+Local の JDK 17.0.13 image では Gradle dependency download が TLS handshake error になったため、この実行では TLS 1.2 を明示した。Dependency 解決後の compile、50 tests、Testcontainers PostgreSQL は成功しており、code/test failure ではない。
+
+Frontend / real API verification:
+
+```bash
+cd frontend
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm e2e
+```
+
+最初の E2E 確認では末尾の ADMIN logout を追加前だったため、その session record だけが idle timeout まで local DB に残った。最終 E2E は全 role を logout し、旧 session の再利用拒否は backend integration test でも確認した。
+
+## 10. Phase 9 実行時確認
 
 | 確認項目 | 結果 |
 |---|---|
@@ -178,6 +226,6 @@ Backend full regression の初回実行は、起動中の `backend` と test con
 | Mock 未認証リクエスト | 401 Unauthorized |
 | Mock Basic Auth リクエスト | 200 OK |
 
-## 10. 補足
+## 11. 補足
 
 本エビデンスは自動テスト実行結果の要約である。SIer 形式の詳細エビデンスとして提出する場合は、対象テスト、入力値、期待値、実行結果、ログまたはスクリーンショットをケース単位で追加する。

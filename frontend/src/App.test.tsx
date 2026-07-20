@@ -21,9 +21,23 @@ describe('App', () => {
     department: '開発部',
   }
 
-  function mockLogin() {
+  function mockSession(initiallyAuthenticated = false) {
+    let authenticated = initiallyAuthenticated
     server.use(
+      http.get('*/api/auth/csrf', () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            headerName: 'X-CSRF-TOKEN',
+            parameterName: '_csrf',
+            token: 'test-csrf-token',
+          },
+        }),
+      ),
       http.post('*/api/auth/login', async ({ request }) => {
+        expect(request.headers.get('X-CSRF-TOKEN')).toBe('test-csrf-token')
+        expect(request.headers.get('Authorization')).toBeNull()
+        expect(request.credentials).toBe('same-origin')
         const body = (await request.json()) as {
           email: string
           password: string
@@ -41,32 +55,52 @@ describe('App', () => {
             { status: 401 },
           )
         }
+        authenticated = true
         return HttpResponse.json({
           success: true,
-          data: { authenticationType: 'Basic', user: currentUser },
+          data: { authenticationType: 'Session', user: currentUser },
         })
       }),
-      http.get('*/api/auth/me', ({ request }) => {
-        expect(request.headers.get('Authorization')).toMatch(/^Basic /)
+      http.get('*/api/auth/me', () => {
+        if (!authenticated) {
+          return HttpResponse.json(
+            {
+              success: false,
+              code: 'UNAUTHORIZED',
+              message: '認証が必要です。',
+            },
+            { status: 401 },
+          )
+        }
         return HttpResponse.json({ success: true, data: currentUser })
+      }),
+      http.post('*/api/auth/logout', ({ request }) => {
+        expect(request.headers.get('X-CSRF-TOKEN')).toBe('test-csrf-token')
+        authenticated = false
+        return HttpResponse.json({
+          success: true,
+          data: null,
+          message: 'ログアウトしました。',
+        })
       }),
     )
   }
 
-  it('未認証ではログイン画面を表示する', () => {
+  it('未認証ではログイン画面を表示する', async () => {
+    mockSession()
     const router = createMemoryRouter(appRoutes, {
       initialEntries: ['/login'],
     })
     render(<App router={router} />)
     expect(
-      screen.getByRole('heading', { name: '経費精算システム' }),
+      await screen.findByRole('heading', { name: '経費精算システム' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ログインする' })).toBeEnabled()
   })
 
-  it('ログイン後にBasic認証で申請一覧を取得する', async () => {
+  it('CSRF付きSession login後に申請一覧を取得する', async () => {
     const user = userEvent.setup()
-    mockLogin()
+    mockSession()
     server.use(
       http.get('*/api/expense-applications', () =>
         HttpResponse.json({
@@ -100,7 +134,7 @@ describe('App', () => {
     render(<App router={router} />)
 
     await user.type(
-      screen.getByRole('textbox', { name: 'メールアドレス' }),
+      await screen.findByRole('textbox', { name: 'メールアドレス' }),
       'user@example.com',
     )
     await user.type(screen.getByLabelText('パスワード'), 'Password123!')
@@ -116,7 +150,7 @@ describe('App', () => {
 
   it('ログアウトは確認後に実行し、キャンセル時はセッションを維持する', async () => {
     const user = userEvent.setup()
-    mockLogin()
+    mockSession()
     server.use(
       http.get('*/api/expense-applications', () =>
         HttpResponse.json({
@@ -137,7 +171,7 @@ describe('App', () => {
     render(<App router={router} />)
 
     await user.type(
-      screen.getByRole('textbox', { name: 'メールアドレス' }),
+      await screen.findByRole('textbox', { name: 'メールアドレス' }),
       'user@example.com',
     )
     await user.type(screen.getByLabelText('パスワード'), 'Password123!')
@@ -168,7 +202,7 @@ describe('App', () => {
 
   it('未保存の新規申請で必須項目を検証する', async () => {
     const user = userEvent.setup()
-    mockLogin()
+    mockSession()
     const router = createMemoryRouter(appRoutes, {
       initialEntries: ['/expenses/new'],
     })
@@ -188,5 +222,34 @@ describe('App', () => {
     expect(screen.getByText('利用日を入力してください。')).toBeVisible()
     expect(screen.getByText('金額を入力してください。')).toBeVisible()
     expect(screen.getByText('内容を入力してください。')).toBeVisible()
+  })
+
+  it('reload相当の起動時にSessionを復元する', async () => {
+    mockSession(true)
+    server.use(
+      http.get('*/api/expense-applications', () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            content: [],
+            page: 0,
+            size: 20,
+            totalElements: 0,
+            totalPages: 0,
+          },
+        }),
+      ),
+    )
+    const router = createMemoryRouter(appRoutes, {
+      initialEntries: ['/expenses'],
+    })
+    render(<App router={router} />)
+
+    expect(
+      await screen.findByRole('heading', { name: '申請一覧' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'ログインする' }),
+    ).not.toBeInTheDocument()
   })
 })

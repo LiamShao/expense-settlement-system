@@ -1,11 +1,16 @@
 import type { PropsWithChildren } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import type { Role } from '../api/types'
+import { LoadingSkeleton } from '../components/LoadingSkeleton'
 import { useAuth } from '../features/auth/AuthContext'
 
 export function ProtectedRoute({ children }: PropsWithChildren) {
-  const { isAuthenticated, sessionMessage } = useAuth()
+  const { isAuthenticated, isInitializing, sessionMessage } = useAuth()
   const location = useLocation()
+
+  if (isInitializing) {
+    return <LoadingSkeleton />
+  }
 
   if (!isAuthenticated) {
     return (

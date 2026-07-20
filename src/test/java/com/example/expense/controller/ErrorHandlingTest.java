@@ -24,6 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,6 +48,7 @@ class ErrorHandlingTest {
     @Test
     void create_異常系_Validationエラーを統一形式で返す() throws Exception {
         mockMvc.perform(post("/api/expense-applications")
+                        .with(csrf())
                         .with(user(securityUser()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -69,6 +71,7 @@ class ErrorHandlingTest {
     @Test
     void create_異常系_不正なJSONを統一形式で返す() throws Exception {
         mockMvc.perform(post("/api/expense-applications")
+                        .with(csrf())
                         .with(user(securityUser()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{invalid-json"))
@@ -111,6 +114,23 @@ class ErrorHandlingTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("認証が必要です。"))
+                .andExpect(jsonPath("$.path").value("/api/expense-applications"));
+    }
+
+    @Test
+    void create_異常系_CSRF不足は統一形式で返す() throws Exception {
+        mockMvc.perform(post("/api/expense-applications")
+                        .with(user(securityUser()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "CSRF test",
+                                  "items": []
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("CSRF_INVALID"))
                 .andExpect(jsonPath("$.path").value("/api/expense-applications"));
     }
 

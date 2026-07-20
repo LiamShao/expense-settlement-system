@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.csrf.InvalidCsrfTokenException;
+import org.springframework.security.web.csrf.MissingCsrfTokenException;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -30,9 +32,17 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
+        boolean csrfInvalid = accessDeniedException instanceof MissingCsrfTokenException
+                || accessDeniedException instanceof InvalidCsrfTokenException;
         objectMapper.writeValue(
                 response.getOutputStream(),
-                ErrorResponse.of("FORBIDDEN", "この操作を実行する権限がありません。", request.getRequestURI())
+                ErrorResponse.of(
+                        csrfInvalid ? "CSRF_INVALID" : "FORBIDDEN",
+                        csrfInvalid
+                                ? "セキュリティトークンが無効です。再読み込みして再試行してください。"
+                                : "この操作を実行する権限がありません。",
+                        request.getRequestURI()
+                )
         );
     }
 }

@@ -1,4 +1,4 @@
-import type { ValidationErrorDetail } from './types'
+import type { CsrfTokenResponse, ValidationErrorDetail } from './types'
 
 interface ApiResponse<T> {
   success: boolean
@@ -26,20 +26,68 @@ export class ApiError extends Error {
 }
 
 export interface ApiRequestOptions extends RequestInit {
-  credential?: string | null
   onUnauthorized?: () => void
 }
 
-export async function requestApi<T>(
+const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
+let csrfToken: CsrfTokenResponse | null = null
+
+export function clearCsrfToken() {
+  csrfToken = null
+}
+
+async function loadCsrfToken(): Promise<CsrfTokenResponse> {
+  let response: Response
+  try {
+    response = await fetch(new URL('/api/auth/csrf', window.location.origin), {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+  } catch {
+    throw new ApiError(
+      '通信に失敗しました。ネットワーク接続を確認して再試行してください。',
+      0,
+      'NETWORK_ERROR',
+    )
+  }
+
+  let payload: ApiResponse<CsrfTokenResponse> | ErrorResponse | undefined
+  try {
+    payload = (await response.json()) as
+      | ApiResponse<CsrfTokenResponse>
+      | ErrorResponse
+  } catch {
+    payload = undefined
+  }
+
+  if (!response.ok || !payload?.success) {
+    const error = payload as ErrorResponse | undefined
+    throw new ApiError(
+      error?.message ?? 'セキュリティ情報を取得できませんでした。',
+      response.status,
+      error?.code,
+      error?.details,
+    )
+  }
+
+  csrfToken = payload.data
+  return csrfToken
+}
+
+async function executeRequest<T>(
   path: string,
-  options: ApiRequestOptions = {},
+  options: ApiRequestOptions,
+  retryCsrf: boolean,
 ): Promise<T> {
-  const { credential, onUnauthorized, headers, ...requestOptions } = options
+  const { onUnauthorized, headers, ...requestOptions } = options
+  const method = (requestOptions.method ?? 'GET').toUpperCase()
   const requestHeaders = new Headers(headers)
   requestHeaders.set('Accept', 'application/json')
 
-  if (credential) {
-    requestHeaders.set('Authorization', credential)
+  if (!safeMethods.has(method)) {
+    const currentCsrfToken = csrfToken ?? (await loadCsrfToken())
+    requestHeaders.set(currentCsrfToken.headerName, currentCsrfToken.token)
   }
   if (requestOptions.body && !requestHeaders.has('Content-Type')) {
     requestHeaders.set('Content-Type', 'application/json')
@@ -49,6 +97,7 @@ export async function requestApi<T>(
   try {
     response = await fetch(new URL(path, window.location.origin), {
       ...requestOptions,
+      credentials: requestOptions.credentials ?? 'same-origin',
       headers: requestHeaders,
     })
   } catch {
@@ -64,6 +113,16 @@ export async function requestApi<T>(
     payload = (await response.json()) as ApiResponse<T> | ErrorResponse
   } catch {
     payload = undefined
+  }
+
+  if (
+    response.status === 403 &&
+    (payload as ErrorResponse | undefined)?.code === 'CSRF_INVALID' &&
+    retryCsrf
+  ) {
+    clearCsrfToken()
+    await loadCsrfToken()
+    return executeRequest<T>(path, options, false)
   }
 
   if (response.status === 401) {
@@ -84,4 +143,11 @@ export async function requestApi<T>(
   }
 
   return payload.data
+}
+
+export async function requestApi<T>(
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<T> {
+  return executeRequest<T>(path, options, true)
 }

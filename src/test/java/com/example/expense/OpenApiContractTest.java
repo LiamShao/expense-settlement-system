@@ -18,7 +18,9 @@ class OpenApiContractTest {
 
     private static final Set<String> EXPECTED_PATHS = Set.of(
             "/api/auth/login",
+            "/api/auth/logout",
             "/api/auth/me",
+            "/api/auth/csrf",
             "/api/expense-applications",
             "/api/expense-applications/{id}",
             "/api/expense-applications/{id}/submit",
@@ -46,13 +48,14 @@ class OpenApiContractTest {
         Map<String, Object> components = (Map<String, Object>) document.get("components");
         Map<String, Object> securitySchemes = (Map<String, Object>) components.get("securitySchemes");
         Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
-        Map<String, Object> basicAuth = (Map<String, Object>) securitySchemes.get("basicAuth");
+        Map<String, Object> sessionCookie = (Map<String, Object>) securitySchemes.get("sessionCookie");
 
         assertThat(document.get("openapi")).isEqualTo("3.0.3");
         assertThat(paths.keySet()).containsExactlyInAnyOrderElementsOf(EXPECTED_PATHS);
-        assertThat(basicAuth)
-                .containsEntry("type", "http")
-                .containsEntry("scheme", "basic");
+        assertThat(sessionCookie)
+                .containsEntry("type", "apiKey")
+                .containsEntry("in", "cookie")
+                .containsEntry("name", "SESSION");
         assertThat(schemas).containsKeys("ErrorResponse", "ValidationErrorDetail");
     }
 
@@ -74,7 +77,11 @@ class OpenApiContractTest {
         assertThat(operationIds).doesNotHaveDuplicates();
 
         var protectedOperations = operations.stream()
-                .filter(operation -> !Set.of("/api/auth/login", "/actuator/health").contains(operation.getKey()))
+                .filter(operation -> !Set.of(
+                        "/api/auth/csrf",
+                        "/api/auth/login",
+                        "/actuator/health"
+                ).contains(operation.getKey()))
                 .toList();
         assertThat(protectedOperations)
                 .allSatisfy(operation -> assertThat(operation.getValue()).containsKey("security"));

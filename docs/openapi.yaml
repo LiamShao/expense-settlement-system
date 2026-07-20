@@ -4,7 +4,7 @@ info:
   description: |-
     日本企業の経費申請・承認フローを想定した REST API。
     `docs/openapi.yaml` を正式契約とし、Swagger UI と Prism Mock Server が同じ定義を利用する。
-  version: 0.3.0
+  version: 0.4.0
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -23,13 +23,32 @@ tags:
     description: ヘルスチェック
 
 paths:
+  /api/auth/csrf:
+    get:
+      tags:
+        - Auth
+      summary: CSRF token 取得
+      description: Current session に紐づく CSRF token と request header name を返す。
+      operationId: getCsrfToken
+      responses:
+        '200':
+          description: CSRF token 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfApiResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /api/auth/login:
     post:
       tags:
         - Auth
-      summary: ログイン確認
-      description: メールアドレスとパスワードを検証し、認証方式とユーザー情報を返す。
+      summary: ログイン
+      description: メールアドレスとパスワードを検証し、server-side session を開始してユーザー情報を返す。
       operationId: login
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
         required: true
         content:
@@ -47,6 +66,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -58,7 +79,7 @@ paths:
       description: 認証済みユーザー自身の情報を返す。
       operationId: getCurrentUser
       security:
-        - basicAuth: []
+        - sessionCookie: []
       responses:
         '200':
           description: 取得成功
@@ -71,6 +92,30 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: ログアウト
+      description: Current server-side session があれば無効化し、SESSION cookie を削除する。既に失効している場合も成功する。
+      operationId: logout
+      security:
+        - sessionCookie: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoidApiResponse'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /api/expense-applications:
     get:
       tags:
@@ -79,7 +124,7 @@ paths:
       description: 経費申請を検索する。USER / APPROVER は本人の申請のみ、ADMIN は全ユーザーの申請を取得できる。
       operationId: searchExpenseApplications
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - name: applicantId
           in: query
@@ -150,7 +195,9 @@ paths:
       description: 経費申請を DRAFT として作成する。
       operationId: createExpenseApplication
       security:
-        - basicAuth: []
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
         required: true
         content:
@@ -179,7 +226,7 @@ paths:
       description: 経費申請ヘッダと明細を取得する。USER / APPROVER は本人の申請のみ、ADMIN は全ユーザーの申請を取得できる。
       operationId: getExpenseApplicationById
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
       responses:
@@ -205,9 +252,10 @@ paths:
       description: DRAFT または RETURNED の経費申請を更新する。更新後は DRAFT に戻す。
       operationId: updateExpenseApplication
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
+        - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
         required: true
         content:
@@ -239,9 +287,10 @@ paths:
       description: DRAFT または RETURNED の経費申請を削除する。
       operationId: deleteExpenseApplication
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
+        - $ref: '#/components/parameters/CsrfHeader'
       responses:
         '200':
           description: 削除成功
@@ -268,9 +317,10 @@ paths:
       description: DRAFT または RETURNED の経費申請を SUBMITTED に変更する。
       operationId: submitExpenseApplication
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
+        - $ref: '#/components/parameters/CsrfHeader'
       responses:
         '200':
           description: 申請成功
@@ -297,9 +347,10 @@ paths:
       description: APPROVER または ADMIN が SUBMITTED の経費申請を APPROVED に変更する。自分の申請は承認できない。
       operationId: approveExpenseApplication
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
+        - $ref: '#/components/parameters/CsrfHeader'
       responses:
         '200':
           description: 承認成功
@@ -326,9 +377,10 @@ paths:
       description: APPROVER または ADMIN が SUBMITTED の経費申請を RETURNED に変更する。自分の申請は差戻しできない。
       operationId: returnExpenseApplication
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
+        - $ref: '#/components/parameters/CsrfHeader'
       requestBody:
         required: true
         content:
@@ -361,7 +413,7 @@ paths:
       description: APPROVER / ADMIN が、他人の SUBMITTED 申請を検索する。
       operationId: searchReviews
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - name: applicantId
           in: query
@@ -427,7 +479,7 @@ paths:
       description: APPROVER / ADMIN が、他人の SUBMITTED 申請のヘッダと明細を取得する。
       operationId: getReviewById
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - $ref: '#/components/parameters/ExpenseApplicationId'
       responses:
@@ -456,7 +508,7 @@ paths:
       description: 監査ログを検索する。ADMIN のみ利用可能。
       operationId: searchAuditLogs
       security:
-        - basicAuth: []
+        - sessionCookie: []
       parameters:
         - name: userId
           in: query
@@ -540,12 +592,20 @@ paths:
 
 components:
   securitySchemes:
-    basicAuth:
-      type: http
-      scheme: basic
-      description: Seed user の email と password を使用する HTTP Basic 認証。
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: Spring Session JDBC が管理する opaque server-side session ID。Browser JavaScript から読み取らない。
 
   parameters:
+    CsrfHeader:
+      name: X-CSRF-TOKEN
+      in: header
+      required: true
+      schema:
+        type: string
+      description: "/api/auth/csrf が返す token。POST / PUT / PATCH / DELETE で必須。"
     ExpenseApplicationId:
       name: id
       in: path
@@ -607,6 +667,18 @@ components:
             message: 他のユーザーの経費申請は操作できません。
             path: /api/expense-applications/10
             timestamp: '2026-07-12T10:00:00'
+    CsrfInvalid:
+      description: CSRF token 不足、不一致、または session expiry
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: CSRF_INVALID
+            message: セキュリティトークンが無効です。再読み込みして再試行してください。
+            path: /api/auth/logout
+            timestamp: '2026-07-20T10:00:00'
     NotFound:
       description: 対象データなし
       content:
@@ -702,7 +774,7 @@ components:
       example:
         success: true
         data:
-          authenticationType: Basic
+          authenticationType: Session
           user:
             id: 1
             employeeCode: E001
@@ -713,6 +785,21 @@ components:
             department: 開発部
         message: ログインに成功しました。
         timestamp: '2026-07-12T10:00:00'
+
+    CsrfApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CsrfTokenResponse'
+      example:
+        success: true
+        data:
+          headerName: X-CSRF-TOKEN
+          parameterName: _csrf
+          token: 2d6e5249-2e39-4e6e-bff7-4d21911ef51f
+        timestamp: '2026-07-20T10:00:00'
 
     UserApiResponse:
       allOf:
@@ -855,9 +942,27 @@ components:
       properties:
         authenticationType:
           type: string
-          example: Basic
+          enum: [Session]
+          example: Session
         user:
           $ref: '#/components/schemas/UserResponse'
+
+    CsrfTokenResponse:
+      type: object
+      required:
+        - headerName
+        - parameterName
+        - token
+      properties:
+        headerName:
+          type: string
+          example: X-CSRF-TOKEN
+        parameterName:
+          type: string
+          example: _csrf
+        token:
+          type: string
+          description: Current session に紐づく token。Browser storage へ永続化しない。
 
     UserResponse:
       type: object

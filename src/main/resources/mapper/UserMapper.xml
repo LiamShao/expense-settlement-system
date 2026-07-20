@@ -13,6 +13,9 @@
         <result property="role" column="role" javaType="com.example.expense.common.enums.RoleType"/>
         <result property="department" column="department"/>
         <result property="enabled" column="enabled"/>
+        <result property="failedLoginAttempts" column="failed_login_attempts"/>
+        <result property="lockedUntil" column="locked_until"/>
+        <result property="lastLoginAt" column="last_login_at"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
@@ -26,6 +29,9 @@
         role,
         department,
         enabled,
+        failed_login_attempts,
+        locked_until,
+        last_login_at,
         created_at,
         updated_at
     </sql>
@@ -51,4 +57,26 @@
         WHERE enabled = TRUE
         ORDER BY employee_code ASC
     </select>
+
+    <update id="recordLoginFailure">
+        UPDATE users
+        SET failed_login_attempts = failed_login_attempts + 1,
+            locked_until = CASE
+                WHEN failed_login_attempts + 1 &gt;= #{maxFailedAttempts}
+                    THEN #{lockedUntil}
+                ELSE locked_until
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND enabled = TRUE
+    </update>
+
+    <update id="recordLoginSuccess">
+        UPDATE users
+        SET failed_login_attempts = 0,
+            locked_until = NULL,
+            last_login_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
 </mapper>

@@ -23,7 +23,7 @@ PostgreSQL Testcontainer
 対象に含めるもの:
 
 - Flyway による schema 作成と初期データ投入
-- DB ユーザーを利用した HTTP Basic 認証
+- DB ユーザー、Spring Session JDBC、secure cookie、CSRF を利用した認証
 - Auth、ExpenseApplication、Review、AuditLog の主要 endpoint
 - 経費申請の登録、検索、状態遷移
 - ロールおよび申請者本人による認可
@@ -42,7 +42,7 @@ PostgreSQL Testcontainer
 | Test framework | JUnit 5 / Spring Boot Test / MockMvc |
 | Database | Testcontainers が起動する PostgreSQL 16 |
 | DB initialization | Flyway `V1`～最新 migration |
-| Authentication | seed user による HTTP Basic 認証 |
+| Authentication | seed user による Session cookie 認証。Unsafe method は CSRF header 必須。 |
 | Isolation | 各テストを transaction rollback して初期状態へ戻す |
 
 Docker daemon を利用できない環境では結合テストを実行できないため、CI でも Docker を利用可能にする。
@@ -63,8 +63,12 @@ Flyway seed data の次のユーザーを利用する。
 
 | No | 対象 | テスト内容 | 期待結果 |
 |---|---|---|---|
-| IT-AUTH-001 | `POST /api/auth/login` | seed user のメールアドレスとパスワードでログインする | 200、認証方式 `Basic`、DB のユーザー情報を返す |
-| IT-AUTH-002 | `GET /api/auth/me` | HTTP Basic 認証で現在ユーザーを取得する | 200、認証した USER の情報を返す |
+| IT-AUTH-001 | `GET /api/auth/csrf` → `POST /api/auth/login` | CSRF token と seed user credential でログインする | 200、認証方式 `Session`、DB user、`HttpOnly` / `SameSite` cookie を返す |
+| IT-AUTH-002 | `GET /api/auth/me` | Login response の Session cookie で現在ユーザーを取得する | 200、認証した USER の情報を返し、Basic header は受け付けない |
+| IT-AUTH-003 | Session fixation | CSRF 取得前 session ID で login する | Login 成功時に session ID が変わり、security context と CSRF state を新 session へ引き継ぐ |
+| IT-AUTH-004 | `POST /api/auth/logout` | Login 済み cookie と CSRF token で logout する | Current session を削除し、旧 cookie の再利用は 401 |
+| IT-AUTH-005 | Login failure lock | 同一 account で password を連続 5 回誤る | failure count と 15 分 lock を DB に保存し、正しい password でも lock 中は 401 |
+| IT-AUTH-006 | CSRF protection | Session cookie 付き unsafe request で token を省略する | 403 と `CSRF_INVALID`、業務更新なし |
 | IT-EXP-001 | `POST /api/expense-applications` | 明細を含む経費申請を作成する | DB に `DRAFT` と明細合計金額を保存し、作成監査ログを登録する |
 | IT-EXP-002 | `GET /api/expense-applications` | USER と ADMIN が一覧検索する | USER は自分の申請だけ、ADMIN は全ユーザーの申請を取得できる |
 | IT-EXP-003 | submit / approve | USER が作成・申請し、APPROVER が承認する | `DRAFT` → `SUBMITTED` → `APPROVED` と遷移し、承認者を保存する |

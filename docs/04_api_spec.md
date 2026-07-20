@@ -12,8 +12,11 @@ http://localhost:8080
 
 ### 1.2 認証
 
-- `/api/auth/login` と `/actuator/health` は認証不要。
-- その他 API は HTTP Basic 認証が必要。
+- `/api/auth/csrf`、`/api/auth/login` と `/actuator/health` は事前 login 不要。
+- Login 成功時に opaque な `SESSION` cookie を発行し、その他 API は有効な server-side session を必要とする。
+- `POST` / `PUT` / `PATCH` / `DELETE` は `/api/auth/csrf` が返す token を指定された header（default `X-CSRF-TOKEN`）で送信する。Login と logout も対象とする。
+- Cookie は `HttpOnly`、`SameSite=Lax`、production `Secure` とし、frontend と API は same-origin とする。
+- Session idle timeout は 30 分。Login 時に session ID を rotation し、logout 時に current session と cookie を無効化する。
 
 ### 1.3 共通レスポンス
 
@@ -55,6 +58,7 @@ http://localhost:8080
 | 400 | `BAD_REQUEST` | 業務ルール違反 |
 | 401 | `UNAUTHORIZED` | 未認証、認証失敗 |
 | 403 | `FORBIDDEN` | 権限不足 |
+| 403 | `CSRF_INVALID` | CSRF token 不足、不一致、期限切れ |
 | 404 | `NOT_FOUND` | 対象データなし |
 | 500 | `INTERNAL_SERVER_ERROR` | 未処理のシステムエラー |
 
@@ -62,14 +66,32 @@ http://localhost:8080
 
 ## 2. 認証 API
 
-### 2.1 ログイン確認
+### 2.1 CSRF token 取得
+
+| 項目 | 内容 |
+|---|---|
+| Method | GET |
+| Path | `/api/auth/csrf` |
+| 認証 | 不要 |
+| 概要 | Current session に紐づく CSRF token、header name、parameter name を返す。 |
+
+Response data:
+
+| 項目 | 型 | 概要 |
+|---|---|---|
+| `headerName` | string | Unsafe request で token を設定する header。 |
+| `parameterName` | string | Form submit 用 parameter name。 |
+| `token` | string | JavaScript memory のみに保持する CSRF token。 |
+
+### 2.2 ログイン
 
 | 項目 | 内容 |
 |---|---|
 | Method | POST |
 | Path | `/api/auth/login` |
 | 認証 | 不要 |
-| 概要 | メールアドレスとパスワードを検証し、認証方式とユーザー情報を返す。 |
+| CSRF | 必要 |
+| 概要 | メールアドレスとパスワードを検証し、server-side session を開始して認証方式 `Session` とユーザー情報を返す。 |
 
 Request:
 
@@ -78,7 +100,9 @@ Request:
 | `email` | string | YES | email, max 255 |
 | `password` | string | YES | max 100 |
 
-### 2.2 ログインユーザー取得
+連続 5 回失敗した account は 15 分 lock する。存在しない、password 不一致、disabled、locked の response はいずれも 401 の一般化された message とする。
+
+### 2.3 ログインユーザー取得
 
 | 項目 | 内容 |
 |---|---|
@@ -86,6 +110,16 @@ Request:
 | Path | `/api/auth/me` |
 | 認証 | 必要 |
 | 概要 | 認証済みユーザー情報を返す。 |
+
+### 2.4 ログアウト
+
+| 項目 | 内容 |
+|---|---|
+| Method | POST |
+| Path | `/api/auth/logout` |
+| 認証 | 任意。Current authenticated session がある場合は無効化する。 |
+| CSRF | 必要 |
+| 概要 | Current session を server-side で無効化し、`SESSION` cookie を削除する。Session が既に失効していても成功する idempotent operation とする。 |
 
 ## 3. 経費申請 API
 

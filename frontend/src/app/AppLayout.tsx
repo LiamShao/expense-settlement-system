@@ -5,6 +5,7 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import {
+  Alert,
   AppBar,
   Box,
   Chip,
@@ -16,6 +17,7 @@ import {
   ListItemIcon,
   ListItemText,
   Stack,
+  Snackbar,
   Toolbar,
   Tooltip,
   Typography,
@@ -42,6 +44,8 @@ export function AppLayout() {
   const narrow = useMediaQuery(theme.breakpoints.down('md'))
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const [logoutPending, setLogoutPending] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
@@ -77,9 +81,22 @@ export function AppLayout() {
     },
   ]
 
-  const handleLogoutConfirm = () => {
-    navigate('/login', { replace: true, state: null, flushSync: true })
-    logout()
+  const handleLogoutConfirm = async () => {
+    setLogoutPending(true)
+    setLogoutError(null)
+    try {
+      await logout()
+      navigate('/login', { replace: true, state: null, flushSync: true })
+    } catch (error) {
+      setLogoutError(
+        error instanceof Error
+          ? error.message
+          : 'ログアウトできませんでした。再試行してください。',
+      )
+    } finally {
+      setLogoutPending(false)
+      setLogoutDialogOpen(false)
+    }
   }
 
   const drawer = (
@@ -224,9 +241,23 @@ export function AppLayout() {
         title="ログアウトしますか？"
         description="現在のセッションを終了してログイン画面に戻ります。"
         confirmLabel="ログアウトする"
+        pending={logoutPending}
         onCancel={() => setLogoutDialogOpen(false)}
         onConfirm={handleLogoutConfirm}
       />
+      <Snackbar
+        open={Boolean(logoutError)}
+        autoHideDuration={6000}
+        onClose={() => setLogoutError(null)}
+      >
+        <Alert
+          severity="error"
+          variant="filled"
+          onClose={() => setLogoutError(null)}
+        >
+          {logoutError}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -65,6 +66,7 @@ class ExpenseApplicationControllerTest {
         ), any(SecurityUser.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/expense-applications")
+                        .with(csrf())
                         .with(user(securityUser()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -93,6 +95,7 @@ class ExpenseApplicationControllerTest {
     @Test
     void create_異常系_金額の小数は許可しない() throws Exception {
         mockMvc.perform(post("/api/expense-applications")
+                        .with(csrf())
                         .with(user(securityUser()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

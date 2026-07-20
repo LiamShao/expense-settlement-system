@@ -16,6 +16,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
+import { LoadingSkeleton } from '../../components/LoadingSkeleton'
 import { useAuth } from './AuthContext'
 
 const loginSchema = z.object({
@@ -39,7 +40,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [loginInProgress, setLoginInProgress] = useState(false)
-  const { isAuthenticated, login, sessionMessage } = useAuth()
+  const { isAuthenticated, isInitializing, login, sessionMessage } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const state = (location.state ?? {}) as LoginLocationState
@@ -51,6 +52,10 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   })
+
+  if (isInitializing) {
+    return <LoadingSkeleton />
+  }
 
   if (isAuthenticated && !loginInProgress) {
     return <Navigate to="/expenses" replace />

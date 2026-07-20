@@ -28,6 +28,7 @@ Controller、Service、Spring Security で発生するエラーを同一の JSON
 | `MethodArgumentTypeMismatchException` | 400 | `INVALID_REQUEST` | Path / Query の型不正を共通メッセージ化 |
 | `ResponseStatusException` | 指定値 | HTTP status 名 | Service の status と業務メッセージを維持 |
 | `AuthenticationException` | 401 | `UNAUTHORIZED` | 認証失敗を共通メッセージ化 |
+| `InvalidCsrfTokenException` / `MissingCsrfTokenException` | 403 | `CSRF_INVALID` | CSRF token の不足、不一致、期限切れを共通メッセージ化 |
 | `AccessDeniedException` | 403 | `FORBIDDEN` | 権限不足を共通メッセージ化 |
 | その他の `Exception` | 500 | `INTERNAL_SERVER_ERROR` | 詳細はログだけに出力し、レスポンスへ公開しない |
 
@@ -36,10 +37,12 @@ Controller、Service、Spring Security で発生するエラーを同一の JSON
 Security Filter 内の例外は `@RestControllerAdvice` の対象外であるため、以下を `SecurityFilterChain` に設定する。
 
 - `RestAuthenticationEntryPoint`: 未認証時の 401 JSON を生成する。
-- `RestAccessDeniedHandler`: 認証済みユーザーの権限不足時の 403 JSON を生成する。
+- `RestAccessDeniedHandler`: CSRF error は `CSRF_INVALID`、その他の権限不足は `FORBIDDEN` の 403 JSON を生成する。
+- `RestLogoutSuccessHandler`: Logout 成功時に共通 success JSON を生成する。
 
 ## 5. ログ・セキュリティ
 
 - 予期しない例外は URI と stack trace をサーバーログへ記録する。
 - 500 response には例外クラス、stack trace、SQL、credential を含めない。
+- Application log には password、session ID、CSRF token を含めない。
 - Validation や業務エラーはクライアント起因のため stack trace をログ出力しない。

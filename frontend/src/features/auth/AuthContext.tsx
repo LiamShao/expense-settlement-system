@@ -2,12 +2,18 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type PropsWithChildren,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { requestApi, type ApiRequestOptions } from '../../api/client'
+import {
+  ApiError,
+  clearCsrfToken,
+  requestApi,
+  type ApiRequestOptions,
+} from '../../api/client'
 import type { AuthResponse, User } from '../../api/types'
 
 interface LoginInput {
@@ -18,83 +24,110 @@ interface LoginInput {
 interface AuthContextValue {
   user: User | null
   isAuthenticated: boolean
+  isInitializing: boolean
   sessionMessage: string | null
   login: (input: LoginInput) => Promise<void>
-  logout: (message?: string) => void
+  logout: () => Promise<void>
   request: <T>(path: string, options?: RequestInit) => Promise<T>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function createBasicCredential(email: string, password: string): string {
-  const bytes = new TextEncoder().encode(`${email}:${password}`)
-  let binary = ''
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte)
-  })
-  return `Basic ${window.btoa(binary)}`
-}
-
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
-  const [credential, setCredential] = useState<string | null>(null)
+  const [isInitializing, setIsInitializing] = useState(true)
   const [sessionMessage, setSessionMessage] = useState<string | null>(null)
 
-  const logout = useCallback(
+  const clearSession = useCallback(
     (message?: string) => {
       setUser(null)
-      setCredential(null)
       setSessionMessage(message ?? null)
+      clearCsrfToken()
       queryClient.clear()
     },
     [queryClient],
   )
 
+  useEffect(() => {
+    let active = true
+
+    requestApi<User>('/api/auth/me')
+      .then((currentUser) => {
+        if (!active) {
+          return
+        }
+        setUser(currentUser)
+        setSessionMessage(null)
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return
+        }
+        setUser(null)
+        if (!(error instanceof ApiError && error.status === 401)) {
+          setSessionMessage(
+            error instanceof Error
+              ? error.message
+              : '認証状態を確認できませんでした。',
+          )
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsInitializing(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   const login = useCallback(async ({ email, password }: LoginInput) => {
-    await requestApi<AuthResponse>('/api/auth/login', {
+    const response = await requestApi<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
-
-    const nextCredential = createBasicCredential(email, password)
-    const currentUser = await requestApi<User>('/api/auth/me', {
-      credential: nextCredential,
-    })
-
-    setCredential(nextCredential)
-    setUser(currentUser)
+    setUser(response.user)
     setSessionMessage(null)
   }, [])
 
+  const logout = useCallback(async () => {
+    await requestApi<null>('/api/auth/logout', { method: 'POST' })
+    clearSession()
+  }, [clearSession])
+
   const request = useCallback(
     <T,>(path: string, options: RequestInit = {}) => {
-      if (!credential) {
+      if (!user) {
         return Promise.reject(
-          new Error('認証情報がありません。もう一度ログインしてください。'),
+          new Error('認証セッションがありません。もう一度ログインしてください。'),
         )
       }
       const apiOptions: ApiRequestOptions = {
         ...options,
-        credential,
         onUnauthorized: () =>
-          logout('認証の有効期限が切れました。もう一度ログインしてください。'),
+          clearSession(
+            '認証の有効期限が切れました。もう一度ログインしてください。',
+          ),
       }
       return requestApi<T>(path, apiOptions)
     },
-    [credential, logout],
+    [clearSession, user],
   )
 
   const value = useMemo(
     () => ({
       user,
-      isAuthenticated: Boolean(user && credential),
+      isAuthenticated: Boolean(user),
+      isInitializing,
       sessionMessage,
       login,
       logout,
       request,
     }),
-    [credential, login, logout, request, sessionMessage, user],
+    [isInitializing, login, logout, request, sessionMessage, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

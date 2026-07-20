@@ -19,7 +19,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) {
         User user = userMapper.findByEmail(email);
-        if (user == null || !Boolean.TRUE.equals(user.getEnabled())) {
+        if (user == null) {
             throw new UsernameNotFoundException("User not found: " + email);
         }
         return new SecurityUser(user);

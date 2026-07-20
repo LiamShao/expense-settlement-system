@@ -20,6 +20,10 @@
 |---|---|---|
 | REQ-AUTH-001 | ユーザーはメールアドレスとパスワードでログインできる。 | 実装済み |
 | REQ-AUTH-002 | 認証済みユーザーは自分のユーザー情報を取得できる。 | 実装済み |
+| REQ-AUTH-003 | Login 成功時に server-side session を開始し、browser reload 後も有効期限内の認証状態を復元できる。 | 実装済み |
+| REQ-AUTH-004 | ユーザーは current session を logout でき、logout 後の session ID は再利用できない。 | 実装済み |
+| REQ-AUTH-005 | 連続 5 回の login failure で account を 15 分間一時 lock し、成功時に failure count を reset する。 | 実装済み |
+| REQ-AUTH-006 | Account は管理者または seed/migration により作成し、self-registration は提供しない。 | 実装済み |
 | REQ-EXP-001 | USER は経費申請を下書きとして作成できる。 | 実装済み |
 | REQ-EXP-002 | USER は自分の経費申請一覧を検索できる。 | 実装済み |
 | REQ-EXP-003 | USER は自分の経費申請詳細を参照できる。 | 実装済み |
@@ -44,8 +48,10 @@
 
 | ID | 要件 | 内容 | 状態 |
 |---|---|---|---|
-| NFR-SEC-001 | 認証 | HTTP Basic 認証により API を保護する。 | 実装済み |
+| NFR-SEC-001 | 認証 | Spring Session JDBC と secure cookie により API を保護し、HTTP Basic を廃止する。 | 実装済み |
 | NFR-SEC-002 | 認可 | ロールと申請者本人チェックにより操作を制御する。 | 実装済み |
+| NFR-SEC-003 | Browser credential | Session cookie は `HttpOnly`、production `Secure`、`SameSite=Lax` とし、password/session ID を JavaScript storage、URL、log、analytics に保存しない。 | 実装済み |
+| NFR-SEC-004 | CSRF / session | Unsafe method は CSRF token を必須とし、login 時に session ID を rotation、idle 30 分で session expiry とする。 | 実装済み |
 | NFR-DB-001 | DB 管理 | Flyway により migration を管理する。 | 実装済み |
 | NFR-TEST-001 | テスト | JUnit 5 / Mockito による単体テストと Testcontainers PostgreSQL による API 結合テストを実施する。 | 実装済み |
 | NFR-OPS-001 | 実行環境 | Docker Compose により Java / PostgreSQL 開発環境を提供する。 | 実装済み |
@@ -62,7 +68,8 @@
 ## 5. 前提・制約
 
 - React / TypeScript frontend と Spring Boot REST API は実装済みとする。
-- 認証方式は学習目的として HTTP Basic を採用する。
+- Phase 14B まで採用した学習目的の HTTP Basic は Phase 15 で廃止し、Spring Session JDBC に移行済みである。
+- Frontend と `/api` は same-origin で公開し、account self-registration、password reset、MFA、OIDC は Phase 15 対象外とする。
 - 領収書ファイルの実体管理は未実装であり、DB には object key のみ保持する。
 - 監査ログは業務操作の追跡を目的とし、認証失敗や参照操作は現時点では記録対象外とする。
 - AWS architecture は設計のみ完了しており、AWS resource、IaC、S3 file API、CI/CD deployment は未実装とする。

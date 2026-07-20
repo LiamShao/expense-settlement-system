@@ -66,6 +66,8 @@ test('USER作成・編集・申請、APPROVER承認・差戻し、ADMIN監査検
 
   await test.step('USERが申請を作成・編集・申請する', async () => {
     await login(page, 'user@example.com')
+    await page.reload()
+    await expect(page.getByRole('heading', { name: '申請一覧' })).toBeVisible()
     await createExpense(page, approvalTitle)
 
     await page.getByRole('link', { name: '編集' }).click()
@@ -130,5 +132,6 @@ test('USER作成・編集・申請、APPROVER承認・差戻し、ADMIN監査検
     await expect(
       page.getByText('EXPENSE_APPLICATION_RETURN', { exact: true }).first(),
     ).toBeVisible()
+    await logout(page)
   })
 })
