@@ -83,6 +83,7 @@ export interface ExpenseApplicationDetail {
 }
 
 export interface ExpenseItemInput {
+  id?: number
   expenseDate: string
   category: ExpenseCategory
   amount: number

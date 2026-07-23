@@ -24,8 +24,9 @@
 | 14 | [AWS アーキテクチャ設計書](14_aws_architecture_design.md) | AWS 上の network、compute、database、storage、security、monitoring、運用責任を定義する。 |
 | 15 | [フロントエンド設計書](15_frontend_design.md) | React / TypeScript frontend の画面、navigation、項目、権限、API 連携、error、test 方針を定義する。 |
 | 16 | [MUI UI デザイン仕様書](16_ui_design.md) | MUI theme、layout、component 方針、responsive rule、主要画面 wireframe を定義する。 |
+| 17 | [領収書ファイル設計書](17_receipt_file_design.md) | Phase 16 の file validation、metadata/state、private storage、認可、API/UI、audit、test を定義する。 |
 | ADR | [Architecture Decision Records](adr/README.md) | 重要な architecture decision、その選択理由、trade-off、再検討条件を記録する。 |
-| API | [OpenAPI定義](openapi.yaml) | 実装済み API の機械可読な契約を定義する。 |
+| API | [OpenAPI定義](openapi.yaml) | API の機械可読な契約を定義する。未実装 operation は `x-implementation-status: planned` と明記する。 |
 
 ## 文書更新ルール
 

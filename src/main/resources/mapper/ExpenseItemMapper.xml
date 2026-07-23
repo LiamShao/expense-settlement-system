@@ -32,6 +32,56 @@
         ORDER BY expense_date ASC, id ASC
     </select>
 
+    <select id="findByApplicationIdForUpdate" resultMap="ExpenseItemResultMap">
+        SELECT
+            id,
+            expense_application_id,
+            expense_date,
+            category,
+            amount,
+            description,
+            receipt_object_key,
+            created_at,
+            updated_at
+        FROM expense_items
+        WHERE expense_application_id = #{expenseApplicationId}
+        ORDER BY expense_date ASC, id ASC
+        FOR UPDATE
+    </select>
+
+    <select id="findByIdAndApplicationId" resultMap="ExpenseItemResultMap">
+        SELECT
+            id,
+            expense_application_id,
+            expense_date,
+            category,
+            amount,
+            description,
+            receipt_object_key,
+            created_at,
+            updated_at
+        FROM expense_items
+        WHERE id = #{id}
+          AND expense_application_id = #{expenseApplicationId}
+    </select>
+
+    <select id="findByIdAndApplicationIdForUpdate" resultMap="ExpenseItemResultMap">
+        SELECT
+            id,
+            expense_application_id,
+            expense_date,
+            category,
+            amount,
+            description,
+            receipt_object_key,
+            created_at,
+            updated_at
+        FROM expense_items
+        WHERE id = #{id}
+          AND expense_application_id = #{expenseApplicationId}
+        FOR UPDATE
+    </select>
+
     <insert id="insert" parameterType="com.example.expense.entity.ExpenseItem" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO expense_items (
             expense_application_id,
@@ -70,6 +120,23 @@
             )
         </foreach>
     </insert>
+
+    <update id="update" parameterType="com.example.expense.entity.ExpenseItem">
+        UPDATE expense_items
+        SET expense_date = #{expenseDate},
+            category = #{category},
+            amount = #{amount},
+            description = #{description},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND expense_application_id = #{expenseApplicationId}
+    </update>
+
+    <delete id="deleteByIdAndApplicationId">
+        DELETE FROM expense_items
+        WHERE id = #{id}
+          AND expense_application_id = #{expenseApplicationId}
+    </delete>
 
     <delete id="deleteByApplicationId">
         DELETE FROM expense_items

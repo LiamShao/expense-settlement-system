@@ -9,6 +9,7 @@ import com.example.expense.dto.request.ExpenseItemRequest;
 import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
 import com.example.expense.dto.request.ReviewSearchRequest;
 import com.example.expense.dto.request.UpdateExpenseApplicationRequest;
+import com.example.expense.dto.request.UpdateExpenseItemRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
 import com.example.expense.dto.response.ExpenseItemResponse;
@@ -18,6 +19,7 @@ import com.example.expense.entity.ExpenseItem;
 import com.example.expense.entity.User;
 import com.example.expense.repository.ExpenseApplicationMapper;
 import com.example.expense.repository.ExpenseItemMapper;
+import com.example.expense.repository.ReceiptFileMapper;
 import com.example.expense.repository.UserMapper;
 import com.example.expense.security.SecurityUser;
 import org.springframework.http.HttpStatus;
@@ -26,8 +28,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 public class ExpenseApplicationService {
@@ -36,17 +42,20 @@ public class ExpenseApplicationService {
 
     private final ExpenseApplicationMapper expenseApplicationMapper;
     private final ExpenseItemMapper expenseItemMapper;
+    private final ReceiptFileMapper receiptFileMapper;
     private final UserMapper userMapper;
     private final AuditLogService auditLogService;
 
     public ExpenseApplicationService(
             ExpenseApplicationMapper expenseApplicationMapper,
             ExpenseItemMapper expenseItemMapper,
+            ReceiptFileMapper receiptFileMapper,
             UserMapper userMapper,
             AuditLogService auditLogService
     ) {
         this.expenseApplicationMapper = expenseApplicationMapper;
         this.expenseItemMapper = expenseItemMapper;
+        this.receiptFileMapper = receiptFileMapper;
         this.userMapper = userMapper;
         this.auditLogService = auditLogService;
     }
@@ -132,7 +141,7 @@ public class ExpenseApplicationService {
             UpdateExpenseApplicationRequest request,
             SecurityUser securityUser
     ) {
-        ExpenseApplication application = findApplication(id);
+        ExpenseApplication application = findApplicationForUpdate(id);
         assertOwner(application, securityUser);
         assertEditable(application);
 
@@ -140,8 +149,7 @@ public class ExpenseApplicationService {
         application.setTotalAmount(calculateTotalAmount(request.getItems()));
         expenseApplicationMapper.updateDraft(application);
 
-        expenseItemMapper.deleteByApplicationId(application.getId());
-        expenseItemMapper.insertBatch(toExpenseItems(application.getId(), request.getItems()));
+        reconcileExpenseItems(application.getId(), request.getItems());
         auditLogService.record(
                 securityUser,
                 AuditLogService.ACTION_EXPENSE_APPLICATION_UPDATE,
@@ -155,10 +163,16 @@ public class ExpenseApplicationService {
 
     @Transactional
     public void delete(Long id, SecurityUser securityUser) {
-        ExpenseApplication application = findApplication(id);
+        ExpenseApplication application = findApplicationForUpdate(id);
         assertOwner(application, securityUser);
         assertEditable(application);
 
+        if (receiptFileMapper.existsByApplicationId(application.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "領収書を削除してから経費申請を削除してください。"
+            );
+        }
         expenseApplicationMapper.deleteById(application.getId());
         auditLogService.record(
                 securityUser,
@@ -238,6 +252,14 @@ public class ExpenseApplicationService {
         return application;
     }
 
+    private ExpenseApplication findApplicationForUpdate(Long id) {
+        ExpenseApplication application = expenseApplicationMapper.findByIdForUpdate(id);
+        if (application == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "経費申請が見つかりません。");
+        }
+        return application;
+    }
+
     private void assertOwner(ExpenseApplication application, SecurityUser securityUser) {
         if (!Objects.equals(application.getApplicantId(), securityUser.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "他のユーザーの経費申請は操作できません。");
@@ -285,7 +307,7 @@ public class ExpenseApplicationService {
         }
     }
 
-    private BigDecimal calculateTotalAmount(List<ExpenseItemRequest> items) {
+    private BigDecimal calculateTotalAmount(List<? extends ExpenseItemRequest> items) {
         BigDecimal totalAmount = items.stream()
                 .map(ExpenseItemRequest::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -307,10 +329,65 @@ public class ExpenseApplicationService {
                     item.setCategory(request.getCategory());
                     item.setAmount(request.getAmount());
                     item.setDescription(request.getDescription());
-                    item.setReceiptObjectKey(request.getReceiptObjectKey());
                     return item;
                 })
                 .toList();
+    }
+
+    private void reconcileExpenseItems(Long applicationId, List<UpdateExpenseItemRequest> requests) {
+        List<ExpenseItem> existingItems = expenseItemMapper.findByApplicationIdForUpdate(applicationId);
+        Map<Long, ExpenseItem> existingById = new HashMap<>();
+        for (ExpenseItem existingItem : existingItems) {
+            existingById.put(existingItem.getId(), existingItem);
+        }
+
+        Set<Long> retainedIds = new HashSet<>();
+        for (UpdateExpenseItemRequest request : requests) {
+            if (request.getId() == null) {
+                expenseItemMapper.insert(toExpenseItem(applicationId, request));
+                continue;
+            }
+            if (!retainedIds.add(request.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "同じ経費明細 ID が重複しています。");
+            }
+            ExpenseItem existingItem = existingById.get(request.getId());
+            if (existingItem == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "経費明細が対象の経費申請に属していません。");
+            }
+            applyEditableFields(existingItem, request);
+            if (expenseItemMapper.update(existingItem) != 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "経費明細が同時に更新されました。");
+            }
+        }
+
+        for (ExpenseItem existingItem : existingItems) {
+            if (retainedIds.contains(existingItem.getId())) {
+                continue;
+            }
+            if (receiptFileMapper.existsByExpenseItemId(existingItem.getId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "領収書を削除してから経費明細を削除してください。"
+                );
+            }
+            if (expenseItemMapper.deleteByIdAndApplicationId(existingItem.getId(), applicationId) != 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "経費明細が同時に更新されました。");
+            }
+        }
+    }
+
+    private ExpenseItem toExpenseItem(Long applicationId, ExpenseItemRequest request) {
+        ExpenseItem item = new ExpenseItem();
+        item.setExpenseApplicationId(applicationId);
+        applyEditableFields(item, request);
+        return item;
+    }
+
+    private void applyEditableFields(ExpenseItem item, ExpenseItemRequest request) {
+        item.setExpenseDate(request.getExpenseDate());
+        item.setCategory(request.getCategory());
+        item.setAmount(request.getAmount());
+        item.setDescription(request.getDescription());
     }
 
     private ExpenseApplicationDetailResponse toDetailResponse(ExpenseApplication application) {

@@ -9,6 +9,8 @@ React / TypeScript / MUI と Java / Spring Boot / PostgreSQL / MyBatis / Spring 
 
 バックエンド API に加え、ログイン、申請 CRUD・申請、承認・差戻し、監査ログ検索を行う React / TypeScript frontend を実装済みです。
 
+Phase 16A で領収書 JPEG/PNG/PDF の要件・設計、Phase 16B で DB/storage/scanner 基盤、Phase 16C で明細 ID reconciliation と Receipt Service、Phase 16D で multipart/metadata/binary/delete API、Phase 16E で private S3 adapter と mocked SDK contract test を完成させました。Frontend file UI が次の作業です。
+
 ## 開発背景
 
 日本の業務系開発現場では、Java / Spring Boot、RDB、SQL、設計書、テスト仕様書、権限設計、状態管理の理解が重視されます。  
@@ -42,6 +44,7 @@ React / TypeScript / MUI と Java / Spring Boot / PostgreSQL / MyBatis / Spring 
 | CI | GitHub Actions 設計（workflow は local-only / ignore） |
 | Frontend | React 19.2.7 / TypeScript 5.9.3 / MUI 9.2.0 / Vite 8.1.4 |
 | AWS Design | ECS Fargate, RDS, S3, ALB, CloudWatch, IAM, VPC, Secrets Manager |
+| Receipt Design | Multipart upload, private local/S3 storage adapter, application-proxied streaming |
 
 ## 主な機能
 
@@ -50,6 +53,11 @@ React / TypeScript / MUI と Java / Spring Boot / PostgreSQL / MyBatis / Spring 
 - Docker による Java 17 / Gradle 開発環境
 - PostgreSQL の docker-compose 構成
 - Flyway migration
+- Phase 16B `receipt_files` metadata/state schema と MyBatis lifecycle mapper
+- `ReceiptStorage` / `MalwareScanner` port、root escape/overwrite/symlink を拒否する local adapter、未設定時の fail-closed adapter
+- Phase 16C の明細 ID 差分更新、receipt authorization、file signature/SHA-256 validation、upload/replace/delete、cleanup/audit service
+- Phase 16D の Session/CSRF multipart upload、metadata、認可済み binary streaming、delete Controller と安定 file error code
+- Phase 16E の AWS SDK v2 private S3 adapter、SSE-S3、上書き防止、streaming request、mocked SDK contract test（実 AWS resource 不要）
 - ユーザー、経費申請、経費明細、監査ログの DB schema
 - 初期ユーザー投入
 - Entity / DTO / Enum の定義
@@ -93,7 +101,7 @@ React / TypeScript / MUI と Java / Spring Boot / PostgreSQL / MyBatis / Spring 
   - ExpenseApplication / AuditLog Service の業務ルールを JUnit 5 / Mockito で検証
   - Auth / ExpenseApplication / Review / AuditLog Controller を MockMvc で検証
   - Testcontainers PostgreSQL を利用した主要 API の結合テスト
-  - 全 50 backend テストが成功
+  - Phase 16E の mocked S3 SDK contract、Phase 16D API integration と既存 regression を含む全 113 backend テストが成功
 - React frontend
   - password / session ID を JavaScript storage に保存しない cookie session authentication
   - CSRF token の memory-only 管理、session reload restore、server logout
@@ -172,6 +180,7 @@ src/main/resources/db/migration/
 | users | ユーザー、社員番号、メールアドレス、ロール |
 | expense_applications | 経費申請ヘッダ、申請者、ステータス、合計金額 |
 | expense_items | 経費明細、利用日、カテゴリ、金額、領収書キー |
+| receipt_files | Phase 16 の領収書 metadata、private storage key、lifecycle state |
 | audit_logs | 操作ログ |
 
 ステータスは DB 上では `VARCHAR + CHECK 制約` で管理し、Java 側では `ExpenseStatus` enum として扱います。
@@ -285,9 +294,11 @@ DB integration test      : Spring Boot Test / MockMvc / Testcontainers
 | [AWS アーキテクチャ設計書](docs/14_aws_architecture_design.md) | AWS 上の network、ECS、RDS、S3、security、monitoring、責任分界 |
 | [フロントエンド設計書](docs/15_frontend_design.md) | React / TypeScript の画面、navigation、項目、権限、API 連携、error、test 方針 |
 | [MUI UI デザイン仕様書](docs/16_ui_design.md) | MUI theme、layout、component 方針、responsive rule、主要画面 wireframe |
+| [領収書ファイル設計書](docs/17_receipt_file_design.md) | File validation、metadata/state、private storage、認可、API/UI、audit、test |
 | [Architecture Decision Records](docs/adr/README.md) | 重要な architecture decision、選択理由、trade-off、再検討条件 |
 | [ADR-001 Production authentication](docs/adr/ADR-001-production-authentication.md) | Spring Session JDBC を採用し、HTTP Basic / JWT を不採用とした判断 |
-| [OpenAPI定義](docs/openapi.yaml) | 実装済み API の機械可読な契約 |
+| [ADR-002 Receipt storage/delivery](docs/adr/ADR-002-receipt-storage-and-delivery.md) | Local/private S3 adapter と backend proxy streaming を採用した判断 |
+| [OpenAPI定義](docs/openapi.yaml) | API の機械可読な契約。Phase 16 receipt operation を実装済み契約として定義 |
 
 ## AWS 構成案
 
@@ -424,7 +435,7 @@ application 実行用 image を build します。
 docker build -t expense-settlement-system:local .
 ```
 
-DB 接続情報は `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD` で指定します。CI と production container の詳細は [CI / production container 設計書](docs/13_ci_container_design.md) を参照してください。
+DB 接続情報は `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD` で指定します。Receipt storage の default は fail-closed な `unavailable`、local profile は private filesystem です。実 S3 を利用する承認済み環境だけ `RECEIPT_STORAGE_TYPE=s3`、`RECEIPT_S3_BUCKET`、`AWS_REGION` を設定し、credential は AWS SDK の標準 provider chain から取得します。CI と production container の詳細は [CI / production container 設計書](docs/13_ci_container_design.md) を参照してください。
 
 ### 6. Frontend
 
@@ -461,12 +472,12 @@ Phase 0–15 は完了済みです。後続は業務価値と production readine
 | Priority | Phase | 内容 | 開始条件 |
 |---|---|---|---|
 | P0 / 必須 | Phase 15 | Secure cookie と外部化 session state による production authentication | 完了 |
-| P1 / 高 | Phase 16 | 領収書画像/PDFの upload、authorized preview/download、private storage | 次の実装 Phase として開始可能 |
+| P1 / 高 | Phase 16 | 領収書画像/PDFの upload、authorized preview/download、private storage | 進行中。Phase 16A～16E 完了、frontend が次 |
 | P1 / 高 | Phase 17 | Terraform による AWS IaC | Phase 16 完了。IaC 作成だけでは AWS resource を作成しない |
 | P1 / 高（条件付き） | Phase 18 | AWS deploy、monitoring、rollback、backup/restore 検証 | Account、budget、domain、運用要件、resource 作成承認 |
 | P2 / 任意 | Phase 19 以降 | OIDC/MFA、user 管理、通知、audit、性能・accessibility 改善 | 明確な業務価値または運用要件 |
 
-Phase 15 では HTTP Basic を Spring Session JDBC と `HttpOnly` / production `Secure` / `SameSite=Lax` cookie に置き換え、CSRF、session expiry/revocation、account lock、role boundary を test 済みです。Phase 16 では利用者に object key を入力させる現行 UI を実 file 操作に置き換えます。Phase 17 は review 可能な Terraform と validation まで、Phase 18 は明示的な承認後の resource 作成と production readiness verification を扱います。
+Phase 15 では HTTP Basic を Spring Session JDBC と secure cookie に置き換えました。Phase 16A～16E では receipt contract、V5 metadata/state、local storage/scanner、明細 ID reconciliation、Service、multipart/binary API、private S3 adapter を実装しました。次は frontend file UI です。Phase 17 は Terraform、Phase 18 は明示的な承認後の AWS deployment を扱います。
 
 詳細な scope、完了条件、guardrail は [開発フェーズ計画](docs/09_phase_plan.md) を参照してください。Remote CI は明示的な方針変更なしに復元しません。
 
@@ -490,7 +501,7 @@ Phase 13 AWS 構成設計（完了）
 Phase 14A MUI UI設計 / Review API / frontend foundation（完了）
 Phase 14B React 共通基盤 / 業務画面 / frontend test（完了）
 Phase 15 Production authentication（完了）
-Phase 16 領収書 file API / UI（計画済み・未着手）
+Phase 16 領収書 file API / UI（進行中、16A design / 16B foundation / 16C service / 16D API / 16E S3 adapter 完了）
 Phase 17 AWS Terraform IaC（計画済み・未着手）
 Phase 18 AWS deploy / production readiness（計画済み・未着手、開始条件あり）
 ```

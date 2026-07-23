@@ -9,12 +9,15 @@ import com.example.expense.dto.request.CreateExpenseApplicationRequest;
 import com.example.expense.dto.request.ReturnExpenseApplicationRequest;
 import com.example.expense.dto.request.ReviewSearchRequest;
 import com.example.expense.dto.request.UpdateExpenseApplicationRequest;
+import com.example.expense.dto.request.UpdateExpenseItemRequest;
 import com.example.expense.dto.response.ExpenseApplicationDetailResponse;
 import com.example.expense.dto.response.ExpenseApplicationSummaryResponse;
 import com.example.expense.entity.ExpenseApplication;
+import com.example.expense.entity.ExpenseItem;
 import com.example.expense.entity.User;
 import com.example.expense.repository.ExpenseApplicationMapper;
 import com.example.expense.repository.ExpenseItemMapper;
+import com.example.expense.repository.ReceiptFileMapper;
 import com.example.expense.repository.UserMapper;
 import com.example.expense.security.SecurityUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +51,9 @@ class ExpenseApplicationServiceTest {
     private ExpenseItemMapper expenseItemMapper;
 
     @Mock
+    private ReceiptFileMapper receiptFileMapper;
+
+    @Mock
     private UserMapper userMapper;
 
     @Mock
@@ -56,7 +63,13 @@ class ExpenseApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ExpenseApplicationService(expenseApplicationMapper, expenseItemMapper, userMapper, auditLogService);
+        service = new ExpenseApplicationService(
+                expenseApplicationMapper,
+                expenseItemMapper,
+                receiptFileMapper,
+                userMapper,
+                auditLogService
+        );
     }
 
     @Test
@@ -249,9 +262,15 @@ class ExpenseApplicationServiceTest {
         User applicant = user(1L, RoleType.USER);
         UpdateExpenseApplicationRequest request = updateRequest();
 
+        ExpenseItem existingItem = existingItem(100L, 10L, "1200");
+        request.getItems().get(0).setId(100L);
+
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(draft);
         when(expenseApplicationMapper.findById(10L)).thenReturn(draft);
         when(userMapper.findById(1L)).thenReturn(applicant);
-        when(expenseItemMapper.findByApplicationId(10L)).thenReturn(List.of());
+        when(expenseItemMapper.findByApplicationIdForUpdate(10L)).thenReturn(List.of(existingItem));
+        when(expenseItemMapper.update(any())).thenReturn(1);
+        when(expenseItemMapper.findByApplicationId(10L)).thenReturn(List.of(existingItem));
 
         ExpenseApplicationDetailResponse response = service.update(10L, request, new SecurityUser(applicant));
 
@@ -262,11 +281,10 @@ class ExpenseApplicationServiceTest {
                         && application.getTitle().equals("更新後の出張交通費")
                         && application.getTotalAmount().compareTo(BigDecimal.valueOf(2500)) == 0
         ));
-        verify(expenseItemMapper).deleteByApplicationId(10L);
-        verify(expenseItemMapper).insertBatch(org.mockito.ArgumentMatchers.argThat(items ->
-                items.size() == 1
-                        && items.get(0).getExpenseApplicationId().equals(10L)
-                        && items.get(0).getAmount().compareTo(BigDecimal.valueOf(2500)) == 0
+        verify(expenseItemMapper).update(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getId().equals(100L)
+                        && item.getExpenseApplicationId().equals(10L)
+                        && item.getAmount().compareTo(BigDecimal.valueOf(2500)) == 0
         ));
     }
 
@@ -275,15 +293,132 @@ class ExpenseApplicationServiceTest {
         ExpenseApplication submitted = application(10L, 1L, ExpenseStatus.SUBMITTED);
         User applicant = user(1L, RoleType.USER);
 
-        when(expenseApplicationMapper.findById(10L)).thenReturn(submitted);
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(submitted);
 
         assertThatThrownBy(() -> service.update(10L, updateRequest(), new SecurityUser(applicant)))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode")
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         verify(expenseApplicationMapper, never()).updateDraft(any());
-        verify(expenseItemMapper, never()).deleteByApplicationId(any());
+        verify(expenseItemMapper, never()).findByApplicationIdForUpdate(any());
         verify(expenseItemMapper, never()).insertBatch(any());
+    }
+
+    @Test
+    void update_正常系_既存IDを維持し新規追加と削除をreconcileする() {
+        ExpenseApplication draft = application(10L, 1L, ExpenseStatus.DRAFT);
+        User applicant = user(1L, RoleType.USER);
+        ExpenseItem retained = existingItem(100L, 10L, "1200");
+        ExpenseItem removed = existingItem(101L, 10L, "800");
+        UpdateExpenseItemRequest retainedRequest = updateExpenseItem("2500");
+        retainedRequest.setId(100L);
+        UpdateExpenseItemRequest newRequest = updateExpenseItem("500");
+        UpdateExpenseApplicationRequest request = new UpdateExpenseApplicationRequest();
+        request.setTitle("対帳後");
+        request.setItems(List.of(retainedRequest, newRequest));
+
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(draft);
+        when(expenseApplicationMapper.findById(10L)).thenReturn(draft);
+        when(expenseItemMapper.findByApplicationIdForUpdate(10L)).thenReturn(List.of(retained, removed));
+        when(expenseItemMapper.update(any())).thenReturn(1);
+        when(expenseItemMapper.insert(any())).thenReturn(1);
+        when(expenseItemMapper.deleteByIdAndApplicationId(101L, 10L)).thenReturn(1);
+        when(userMapper.findById(1L)).thenReturn(applicant);
+        when(expenseItemMapper.findByApplicationId(10L)).thenReturn(List.of(retained));
+
+        service.update(10L, request, new SecurityUser(applicant));
+
+        verify(expenseItemMapper).update(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getId().equals(100L)
+                        && item.getReceiptObjectKey().equals("legacy/object-key")
+        ));
+        verify(expenseItemMapper).insert(org.mockito.ArgumentMatchers.argThat(item ->
+                item.getId() == null
+                        && item.getExpenseApplicationId().equals(10L)
+                        && item.getAmount().compareTo(new BigDecimal("500")) == 0
+        ));
+        verify(expenseItemMapper).deleteByIdAndApplicationId(101L, 10L);
+    }
+
+    @Test
+    void update_異常系_別申請の明細IDは拒否する() {
+        ExpenseApplication draft = application(10L, 1L, ExpenseStatus.DRAFT);
+        User applicant = user(1L, RoleType.USER);
+        UpdateExpenseApplicationRequest request = updateRequest();
+        request.getItems().get(0).setId(999L);
+
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(draft);
+        when(expenseItemMapper.findByApplicationIdForUpdate(10L))
+                .thenReturn(List.of(existingItem(100L, 10L, "1200")));
+
+        assertThatThrownBy(() -> service.update(10L, request, new SecurityUser(applicant)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(expenseItemMapper, never()).update(any());
+        verify(expenseItemMapper, never()).deleteByIdAndApplicationId(any(), any());
+    }
+
+    @Test
+    void update_異常系_同じ明細IDの重複を拒否する() {
+        ExpenseApplication draft = application(10L, 1L, ExpenseStatus.DRAFT);
+        User applicant = user(1L, RoleType.USER);
+        UpdateExpenseItemRequest first = updateExpenseItem("1000");
+        first.setId(100L);
+        UpdateExpenseItemRequest duplicate = updateExpenseItem("1500");
+        duplicate.setId(100L);
+        UpdateExpenseApplicationRequest request = new UpdateExpenseApplicationRequest();
+        request.setTitle("重複ID");
+        request.setItems(List.of(first, duplicate));
+
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(draft);
+        when(expenseItemMapper.findByApplicationIdForUpdate(10L))
+                .thenReturn(List.of(existingItem(100L, 10L, "1200")));
+        when(expenseItemMapper.update(any())).thenReturn(1);
+
+        assertThatThrownBy(() -> service.update(10L, request, new SecurityUser(applicant)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(expenseItemMapper, times(1)).update(any());
+        verify(expenseItemMapper, never()).deleteByIdAndApplicationId(any(), any());
+    }
+
+    @Test
+    void update_異常系_領収書が残る明細は削除しない() {
+        ExpenseApplication draft = application(10L, 1L, ExpenseStatus.DRAFT);
+        User applicant = user(1L, RoleType.USER);
+        ExpenseItem existing = existingItem(100L, 10L, "1200");
+        UpdateExpenseApplicationRequest request = updateRequest();
+
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(draft);
+        when(expenseItemMapper.findByApplicationIdForUpdate(10L)).thenReturn(List.of(existing));
+        when(expenseItemMapper.insert(any())).thenReturn(1);
+        when(receiptFileMapper.existsByExpenseItemId(100L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.update(10L, request, new SecurityUser(applicant)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verify(expenseItemMapper, never()).deleteByIdAndApplicationId(100L, 10L);
+    }
+
+    @Test
+    void delete_異常系_領収書metadataが残る申請は削除しない() {
+        ExpenseApplication draft = application(10L, 1L, ExpenseStatus.DRAFT);
+        User applicant = user(1L, RoleType.USER);
+        when(expenseApplicationMapper.findByIdForUpdate(10L)).thenReturn(draft);
+        when(receiptFileMapper.existsByApplicationId(10L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.delete(10L, new SecurityUser(applicant)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode")
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verify(expenseApplicationMapper, never()).deleteById(10L);
     }
 
     @Test
@@ -369,7 +504,7 @@ class ExpenseApplicationServiceTest {
     }
 
     private UpdateExpenseApplicationRequest updateRequest() {
-        ExpenseItemRequest item = expenseItem("2500");
+        UpdateExpenseItemRequest item = updateExpenseItem("2500");
 
         UpdateExpenseApplicationRequest request = new UpdateExpenseApplicationRequest();
         request.setTitle("更新後の出張交通費");
@@ -383,6 +518,27 @@ class ExpenseApplicationServiceTest {
         item.setCategory(ExpenseCategory.TRANSPORTATION);
         item.setAmount(new BigDecimal(amount));
         item.setDescription("新幹線代");
+        return item;
+    }
+
+    private UpdateExpenseItemRequest updateExpenseItem(String amount) {
+        UpdateExpenseItemRequest item = new UpdateExpenseItemRequest();
+        item.setExpenseDate(LocalDate.of(2026, 7, 13));
+        item.setCategory(ExpenseCategory.TRANSPORTATION);
+        item.setAmount(new BigDecimal(amount));
+        item.setDescription("新幹線代");
+        return item;
+    }
+
+    private ExpenseItem existingItem(Long id, Long applicationId, String amount) {
+        ExpenseItem item = new ExpenseItem();
+        item.setId(id);
+        item.setExpenseApplicationId(applicationId);
+        item.setExpenseDate(LocalDate.of(2026, 7, 13));
+        item.setCategory(ExpenseCategory.TRANSPORTATION);
+        item.setAmount(new BigDecimal(amount));
+        item.setDescription("旧新幹線代");
+        item.setReceiptObjectKey("legacy/object-key");
         return item;
     }
 }

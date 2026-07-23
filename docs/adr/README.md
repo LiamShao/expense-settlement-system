@@ -7,6 +7,7 @@
 | ADR | Title | Status | Date |
 |---|---|---|---|
 | [ADR-001](ADR-001-production-authentication.md) | Production authentication に Spring Session JDBC を採用する | Accepted | 2026-07-20 |
+| [ADR-002](ADR-002-receipt-storage-and-delivery.md) | 領収書を storage adapter と application proxy で扱う | Accepted | 2026-07-23 |
 
 ## Status
 

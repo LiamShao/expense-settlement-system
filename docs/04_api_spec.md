@@ -60,6 +60,11 @@ http://localhost:8080
 | 403 | `FORBIDDEN` | 権限不足 |
 | 403 | `CSRF_INVALID` | CSRF token 不足、不一致、期限切れ |
 | 404 | `NOT_FOUND` | 対象データなし |
+| 409 | `CONFLICT` | Concurrent update または file state 競合 |
+| 413 | `FILE_TOO_LARGE` | Upload file が 10 MiB を超過 |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | JPEG、PNG、PDF 以外の file |
+| 422 | `MALWARE_DETECTED` | Malware scanner が危険な file と判定 |
+| 503 | `FILE_SERVICE_UNAVAILABLE` | Private storage または scanner の一時障害 |
 | 500 | `INTERNAL_SERVER_ERROR` | 未処理のシステムエラー |
 
 内部例外のメッセージ、stack trace、DB 接続情報などはレスポンスに含めない。
@@ -172,7 +177,8 @@ Request:
 | `items[].category` | string | YES | `TRANSPORTATION` / `MEAL` / `SUPPLIES` / `ACCOMMODATION` / `OTHER` |
 | `items[].amount` | integer | YES | min 1, max 999999999999。整数円のみ。 |
 | `items[].description` | string | YES | not blank, max 500 |
-| `items[].receiptObjectKey` | string | NO | max 500 |
+
+領収書は申請/明細作成後、Phase 16 の receipt endpoint から upload する。Phase 16 実装時に `receiptObjectKey` の client input は廃止し、server-generated storage key を JSON request で受け付けない。
 
 ### 3.4 更新
 
@@ -183,7 +189,7 @@ Request:
 | 認証 | 必要 |
 | 概要 | `DRAFT` または `RETURNED` の経費申請を更新する。更新後は `DRAFT` に戻す。 |
 
-Request は作成 API と同一。
+Request の item field は作成 API と同じで、既存明細には optional `items[].id` を付ける。既存 ID は同一 application に属し、request 内で重複してはならない。ID なしは新規 insert、既存 request から省略された ID は削除とする。Receipt metadata が残る明細の削除は `409 CONFLICT` とし、先に receipt delete/cleanup を完了する。
 
 ### 3.5 削除
 
@@ -193,6 +199,8 @@ Request は作成 API と同一。
 | Path | `/api/expense-applications/{id}` |
 | 認証 | 必要 |
 | 概要 | `DRAFT` または `RETURNED` の経費申請を削除する。 |
+
+Receipt metadata が残る application は `409 CONFLICT` とし、先に receipt delete/cleanup を完了する。
 
 ### 3.6 申請
 
@@ -307,8 +315,99 @@ Query:
 | `EXPENSE_APPLICATION_SUBMIT` | `EXPENSE_APPLICATION` | 経費申請申請 |
 | `EXPENSE_APPLICATION_APPROVE` | `EXPENSE_APPLICATION` | 経費申請承認 |
 | `EXPENSE_APPLICATION_RETURN` | `EXPENSE_APPLICATION` | 経費申請差戻し |
+| `RECEIPT_UPLOAD` | `RECEIPT_FILE` | 領収書初回 upload |
+| `RECEIPT_REPLACE` | `RECEIPT_FILE` | 領収書 replace |
+| `RECEIPT_DELETE` | `RECEIPT_FILE` | 領収書 delete |
+| `RECEIPT_PREVIEW` | `RECEIPT_FILE` | 領収書 inline preview |
+| `RECEIPT_DOWNLOAD` | `RECEIPT_FILE` | 領収書 attachment download |
 
-## 6. ヘルスチェック
+Phase 16D で receipt multipart/metadata/content/delete Controller、専用 file error code、binary response header を実装済みである。Audit detail に original file name、storage key、checksum、session ID、binary content を含めない。
+
+## 6. 領収書ファイル API（Phase 16D 実装済み）
+
+共通 base path:
+
+```text
+/api/expense-applications/{applicationId}/items/{itemId}/receipt
+```
+
+`applicationId` と `itemId` の親子関係を backend で検証する。Item ID だけで file を認可しない。
+
+### 6.1 Metadata 取得
+
+| 項目 | 内容 |
+|---|---|
+| Method | GET |
+| Path | `/api/expense-applications/{applicationId}/items/{itemId}/receipt` |
+| 認証 | 必要 |
+| 概要 | Active receipt の公開可能 metadata を返す。Storage key/path は返さない。 |
+
+申請者本人は全 status、APPROVER / ADMIN は他人の `SUBMITTED` review、ADMIN は管理参照可能な全申請で取得できる。
+
+### 6.2 Upload / replace
+
+| 項目 | 内容 |
+|---|---|
+| Method | PUT |
+| Path | `/api/expense-applications/{applicationId}/items/{itemId}/receipt` |
+| 認証 | 必要 |
+| CSRF | 必要 |
+| Content-Type | `multipart/form-data` |
+| 概要 | `file` part を upload し、既存 active receipt がある場合は安全に replace する。 |
+
+Request:
+
+| Part | 型 | 必須 | 制約 |
+|---|---|---|---|
+| `file` | binary | YES | JPEG / PNG / PDF、1～10,485,760 bytes |
+
+申請者本人かつ application が `DRAFT` / `RETURNED` の場合だけ許可する。New file が検査/scanを通過するまで旧 active file を維持する。
+
+### 6.3 Delete
+
+| 項目 | 内容 |
+|---|---|
+| Method | DELETE |
+| Path | `/api/expense-applications/{applicationId}/items/{itemId}/receipt` |
+| 認証 | 必要 |
+| CSRF | 必要 |
+| 概要 | Active receipt を利用者から参照不可にし、private object cleanup を登録する。 |
+
+申請者本人かつ application が `DRAFT` / `RETURNED` の場合だけ許可する。
+
+### 6.4 Preview / download
+
+| 項目 | 内容 |
+|---|---|
+| Method | GET |
+| Path | `/api/expense-applications/{applicationId}/items/{itemId}/receipt/content` |
+| 認証 | 必要 |
+| Response | 検証済み `image/jpeg` / `image/png` / `application/pdf` binary |
+| 概要 | 認可後に private storage から file content を streaming する。 |
+
+Query:
+
+| 項目 | 型 | 必須 | 制約・概要 |
+|---|---|---|---|
+| `disposition` | string | NO | `inline` / `attachment`。default `inline`。 |
+
+Response header は sanitized `Content-Disposition`、`X-Content-Type-Options: nosniff`、`Cache-Control: private, no-store` を含む。Binary response は `ApiResponse` wrapper を使用しない。
+
+### 6.5 Receipt metadata response
+
+| 項目 | 型 | 概要 |
+|---|---|---|
+| `id` | integer(int64) | Receipt metadata ID |
+| `originalFileName` | string | Sanitize 済み表示名 |
+| `contentType` | string | 検証済み Content-Type |
+| `sizeBytes` | integer(int64) | File size |
+| `sha256Checksum` | string | Lowercase SHA-256 hex |
+| `uploadedAt` | datetime | Upload 完了日時 |
+| `previewAvailable` | boolean | Inline preview 可否 |
+
+詳細な file validation、storage state、cleanup、frontend、test 方針は [領収書ファイル設計書](17_receipt_file_design.md) を参照する。
+
+## 7. ヘルスチェック
 
 | 項目 | 内容 |
 |---|---|

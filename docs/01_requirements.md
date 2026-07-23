@@ -43,6 +43,12 @@
 | REQ-FE-002 | APPROVER / ADMIN は承認待ち画面から他人の申請内容を確認し、承認または差戻しできる。 | 実装済み |
 | REQ-FE-003 | ADMIN は画面から監査ログを検索・ページングできる。 | 実装済み |
 | REQ-FE-004 | frontend は role、申請者、status に応じて navigation と action の表示・操作可否を制御する。 | 実装済み |
+| REQ-RCP-001 | 申請者は自分の `DRAFT` / `RETURNED` の経費明細に JPEG、PNG、PDF の領収書を 1 件 upload、replace、delete できる。 | 設計済み・未実装 |
+| REQ-RCP-002 | 申請者は全 status の自分の領収書 metadata と content を preview/download できる。 | 設計済み・未実装 |
+| REQ-RCP-003 | APPROVER / ADMIN は他人の `SUBMITTED` 申請を審査する場合に限り領収書を preview/download でき、ADMIN は管理対象の全申請を参照できる。 | 設計済み・未実装 |
+| REQ-RCP-004 | Application は original file name を表示用 metadata として保持し、storage key は server で生成して API 利用者へ公開しない。 | 設計済み・未実装 |
+| REQ-RCP-005 | 領収書の upload、replace、delete、preview、download を監査ログへ記録する。 | 設計済み・未実装 |
+| REQ-FE-005 | Frontend は object key 手入力を file selection、validation、upload state、preview/download、replace/delete UI に置き換える。 | 設計済み・未実装 |
 
 ## 4. 非機能要件
 
@@ -64,14 +70,20 @@
 | NFR-FE-001 | Usability | 日本語 UI、responsive layout、loading、empty、error state を一貫して提供する。 | 実装済み |
 | NFR-FE-002 | Accessibility | label、keyboard operation、focus management、色に依存しない状態表示を提供する。 | 実装済み |
 | NFR-FE-003 | Frontend test | Unit、component、API mock integration、主要 workflow の E2E test を実施する。 | 実装済み |
+| NFR-FILE-001 | File validation | 1 file 10 MiB 以下、JPEG/PNG/PDF の allowlist、extension/Content-Type/magic bytes 整合、SHA-256、malware scan を server で検証する。 | Backend/local 実装済み。Production scanner 運用は Phase 18 gate。 |
+| NFR-FILE-002 | Private storage | Local/test filesystem と private S3 を storage adapter で分離し、public object、利用者指定 key、container local production data を使用しない。 | Application adapter 実装済み。実 bucket/IAM は Phase 17/18。 |
+| NFR-FILE-003 | File access security | File content は認証・認可済み backend endpoint から streaming し、storage key/path/永続 URL を公開しない。 | Backend API 実装済み。Frontend は後続。 |
+| NFR-FILE-004 | Consistency / recovery | DB と storage の非 atomic operation を state、cleanup、retry/reconciliation で回復し、replace 失敗時に旧 active file を維持する。 | V5 state/mapper、Service、cleanup/retry 実装済み。 |
 
 ## 5. 前提・制約
 
 - React / TypeScript frontend と Spring Boot REST API は実装済みとする。
 - Phase 14B まで採用した学習目的の HTTP Basic は Phase 15 で廃止し、Spring Session JDBC に移行済みである。
 - Frontend と `/api` は same-origin で公開し、account self-registration、password reset、MFA、OIDC は Phase 15 対象外とする。
-- 領収書ファイルの実体管理は未実装であり、DB には object key のみ保持する。
+- Phase 16A の設計、Phase 16B の V5 metadata/storage/scanner、Phase 16C の reconciliation/Service、Phase 16D の HTTP API、Phase 16E の S3 adapter は完了した。Frontend UI は未実装であり、現行画面は object key のみを扱う。
+- 領収書の法定・社内保存年限は未確定のため、Phase 16 では active file の自動期限削除を行わない。
+- Production malware scanner の製品・運用は Phase 18 の deployment gate で確定し、未設定または障害時は file を active にしない。
 - 監査ログは業務操作の追跡を目的とし、認証失敗や参照操作は現時点では記録対象外とする。
-- AWS architecture は設計のみ完了しており、AWS resource、IaC、S3 file API、CI/CD deployment は未実装とする。
+- AWS architecture と application の S3 adapter/API は実装済みだが、AWS resource、IaC、実 S3 接続、CI/CD deployment は未実装とする。
 - GitHub Actions workflow は設計・local 検証済みだが、remote から削除した local-only file のため remote CI は稼働していない。
 - 金額は 1 円以上 999999999999 円以下の整数とし、申請合計も 999999999999 円以下とする。

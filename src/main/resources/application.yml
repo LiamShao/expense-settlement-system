@@ -17,6 +17,10 @@ spring:
   jackson:
     time-zone: Asia/Tokyo
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -53,6 +57,16 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
     persist-authorization: true
+
+app:
+  receipt:
+    storage:
+      type: ${RECEIPT_STORAGE_TYPE:unavailable}
+      local-root: ${RECEIPT_LOCAL_ROOT:.local/receipts}
+      s3-bucket: ${RECEIPT_S3_BUCKET:}
+      s3-region: ${AWS_REGION:ap-northeast-1}
+    scanner:
+      type: ${RECEIPT_SCANNER_TYPE:unavailable}
 
 logging:
   level:

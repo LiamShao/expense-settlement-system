@@ -3,3 +3,10 @@ server:
     session:
       cookie:
         secure: ${SESSION_COOKIE_SECURE:false}
+
+app:
+  receipt:
+    storage:
+      type: ${RECEIPT_STORAGE_TYPE:local}
+    scanner:
+      type: ${RECEIPT_SCANNER_TYPE:eicar-test}

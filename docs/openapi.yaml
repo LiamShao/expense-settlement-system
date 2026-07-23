@@ -4,7 +4,7 @@ info:
   description: |-
     日本企業の経費申請・承認フローを想定した REST API。
     `docs/openapi.yaml` を正式契約とし、Swagger UI と Prism Mock Server が同じ定義を利用する。
-  version: 0.4.0
+  version: 0.6.0
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -17,6 +17,8 @@ tags:
     description: 経費申請 API
   - name: Reviews
     description: 承認待ち API
+  - name: Receipts
+    description: Phase 16 領収書ファイル API
   - name: AuditLogs
     description: 監査ログ API
   - name: Health
@@ -405,6 +407,184 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/expense-applications/{applicationId}/items/{itemId}/receipt:
+    get:
+      tags:
+        - Receipts
+      summary: 領収書 metadata 取得
+      description: 認可済み user に active receipt の公開可能 metadata を返す。Storage key/path は返さない。
+      operationId: getReceiptMetadata
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ReceiptApplicationId'
+        - $ref: '#/components/parameters/ExpenseItemId'
+      responses:
+        '200':
+          description: Metadata 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptFileApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Receipts
+      summary: 領収書 upload / replace
+      description: 申請者本人が DRAFT / RETURNED の明細へ JPEG/PNG/PDF を upload する。既存 active receipt がある場合は検査完了後に replace する。
+      operationId: putReceipt
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ReceiptApplicationId'
+        - $ref: '#/components/parameters/ExpenseItemId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPEG、PNG、PDF。最大 10 MiB。
+      responses:
+        '200':
+          description: Upload / replace 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptFileApiResponse'
+        '400':
+          $ref: '#/components/responses/InvalidFile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrfInvalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/FileTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/MalwareDetected'
+        '503':
+          $ref: '#/components/responses/FileServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Receipts
+      summary: 領収書 delete
+      description: 申請者本人が DRAFT / RETURNED の active receipt を利用者から参照不可にし、object cleanup を登録する。
+      operationId: deleteReceipt
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ReceiptApplicationId'
+        - $ref: '#/components/parameters/ExpenseItemId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: Delete 受付成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoidApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrfInvalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/FileServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/expense-applications/{applicationId}/items/{itemId}/receipt/content:
+    get:
+      tags:
+        - Receipts
+      summary: 領収書 preview / download
+      description: 認可後、active receipt を private storage から streaming する。Binary response は ApiResponse wrapper を使用しない。
+      operationId: getReceiptContent
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ReceiptApplicationId'
+        - $ref: '#/components/parameters/ExpenseItemId'
+        - name: disposition
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - inline
+              - attachment
+            default: inline
+      responses:
+        '200':
+          description: File content。Content-Disposition、X-Content-Type-Options、Cache-Control を設定する。
+          headers:
+            Content-Disposition:
+              description: Sanitized filename を持つ inline または attachment。
+              schema:
+                type: string
+            X-Content-Type-Options:
+              description: 常に nosniff。
+              schema:
+                type: string
+                enum: [nosniff]
+            Cache-Control:
+              description: 常に private, no-store。
+              schema:
+                type: string
+                example: private, no-store
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/FileServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /api/reviews:
     get:
       tags:
@@ -615,6 +795,24 @@ components:
         format: int64
         minimum: 1
       description: 経費申請 ID
+    ReceiptApplicationId:
+      name: applicationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      description: 領収書が属する経費申請 ID
+    ExpenseItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      description: 経費明細 ID。applicationId との親子関係を検証する。
 
   responses:
     BadRequest:
@@ -679,6 +877,27 @@ components:
             message: セキュリティトークンが無効です。再読み込みして再試行してください。
             path: /api/auth/logout
             timestamp: '2026-07-20T10:00:00'
+    ForbiddenOrCsrfInvalid:
+      description: Role/ownership/status の権限不足、または CSRF token 不足・不一致
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                success: false
+                code: FORBIDDEN
+                message: この領収書は操作できません。
+                path: /api/expense-applications/10/items/100/receipt
+                timestamp: '2026-07-23T10:00:00'
+            csrfInvalid:
+              value:
+                success: false
+                code: CSRF_INVALID
+                message: セキュリティトークンが無効です。再読み込みして再試行してください。
+                path: /api/expense-applications/10/items/100/receipt
+                timestamp: '2026-07-23T10:00:00'
     NotFound:
       description: 対象データなし
       content:
@@ -691,6 +910,78 @@ components:
             message: 経費申請が見つかりません。
             path: /api/expense-applications/999
             timestamp: '2026-07-12T10:00:00'
+    InvalidFile:
+      description: Empty file、file name、extension/Content-Type/signature の不整合
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: INVALID_FILE
+            message: ファイルの内容を確認してください。
+            path: /api/expense-applications/10/items/100/receipt
+            timestamp: '2026-07-23T10:00:00'
+    Conflict:
+      description: Concurrent replace/delete または receipt state 競合
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: CONFLICT
+            message: 領収書が更新されています。最新の状態を確認してください。
+            path: /api/expense-applications/10/items/100/receipt
+            timestamp: '2026-07-23T10:00:00'
+    FileTooLarge:
+      description: Upload file が 10 MiB を超過
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: FILE_TOO_LARGE
+            message: ファイルは10 MiB以下にしてください。
+            path: /api/expense-applications/10/items/100/receipt
+            timestamp: '2026-07-23T10:00:00'
+    UnsupportedMediaType:
+      description: JPEG、PNG、PDF 以外
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: UNSUPPORTED_MEDIA_TYPE
+            message: JPEG、PNG、PDF形式のファイルを選択してください。
+            path: /api/expense-applications/10/items/100/receipt
+            timestamp: '2026-07-23T10:00:00'
+    MalwareDetected:
+      description: Malware scanner が危険な file と判定
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: MALWARE_DETECTED
+            message: 安全性を確認できないため、このファイルは登録できません。
+            path: /api/expense-applications/10/items/100/receipt
+            timestamp: '2026-07-23T10:00:00'
+    FileServiceUnavailable:
+      description: Private storage または malware scanner の一時障害
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: FILE_SERVICE_UNAVAILABLE
+            message: ファイルサービスを一時的に利用できません。時間をおいて再試行してください。
+            path: /api/expense-applications/10/items/100/receipt
+            timestamp: '2026-07-23T10:00:00'
     InternalServerError:
       description: 予期しないシステムエラー
       content:
@@ -881,6 +1172,25 @@ components:
           totalPages: 1
         timestamp: '2026-07-12T10:00:00'
 
+    ReceiptFileApiResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReceiptFileResponse'
+      example:
+        success: true
+        data:
+          id: 500
+          originalFileName: tokyo-station-receipt.pdf
+          contentType: application/pdf
+          sizeBytes: 245760
+          sha256Checksum: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          uploadedAt: '2026-07-23T10:00:00'
+          previewAvailable: true
+        timestamp: '2026-07-23T10:00:00'
+
     AuditLogPageApiResponse:
       allOf:
         - $ref: '#/components/schemas/ApiResponseBase'
@@ -1007,8 +1317,42 @@ components:
             description: 東京駅から訪問先までの電車代
 
     UpdateExpenseApplicationRequest:
+      type: object
+      required:
+        - title
+        - items
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/UpdateExpenseItemRequest'
+      example:
+        title: 東京出張交通費（更新）
+        items:
+          - id: 10
+            expenseDate: '2026-07-10'
+            category: TRANSPORTATION
+            amount: 1200
+            description: 東京駅から訪問先までの電車代
+          - expenseDate: '2026-07-11'
+            category: MEAL
+            amount: 800
+            description: 出張時の食事代
+
+    UpdateExpenseItemRequest:
       allOf:
-        - $ref: '#/components/schemas/CreateExpenseApplicationRequest'
+        - $ref: '#/components/schemas/ExpenseItemRequest'
+        - type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+              minimum: 1
+              description: 既存明細を更新するときに指定する。省略時は新規明細として追加する。
 
     ExpenseItemRequest:
       type: object
@@ -1035,12 +1379,13 @@ components:
           type: string
           maxLength: 500
           nullable: true
+          deprecated: true
+          description: Legacy compatibility field。Backend は client input を保存せず、receipt file endpoint を利用する。
       example:
         expenseDate: '2026-07-10'
         category: TRANSPORTATION
         amount: 1200
         description: 東京駅から訪問先までの電車代
-        receiptObjectKey: receipts/2026/07/example.pdf
 
     ReturnExpenseApplicationRequest:
       type: object
@@ -1169,6 +1514,52 @@ components:
         receiptObjectKey:
           type: string
           nullable: true
+          deprecated: true
+          description: Legacy DB 値の read-only compatibility field。新しい storage key は公開しない。
+        receipt:
+          allOf:
+            - $ref: '#/components/schemas/ReceiptFileResponse'
+          nullable: true
+          x-implementation-status: planned
+          description: Frontend integration 時に active receipt metadata を埋め込む予定。個別 metadata endpoint は実装済み。
+
+    ReceiptFileResponse:
+      type: object
+      required:
+        - id
+        - originalFileName
+        - contentType
+        - sizeBytes
+        - sha256Checksum
+        - uploadedAt
+        - previewAvailable
+      properties:
+        id:
+          type: integer
+          format: int64
+        originalFileName:
+          type: string
+          maxLength: 255
+        contentType:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - application/pdf
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 10485760
+        sha256Checksum:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        uploadedAt:
+          type: string
+          format: date-time
+          description: ISO-8601 local date-time
+        previewAvailable:
+          type: boolean
 
     AuditLogPageResponse:
       type: object

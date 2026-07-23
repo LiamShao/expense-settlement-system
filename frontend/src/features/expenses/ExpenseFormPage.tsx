@@ -59,6 +59,7 @@ const categoryLabels: Record<ExpenseCategory, string> = {
 }
 
 const itemSchema = z.object({
+  id: z.number().int().positive().optional(),
   expenseDate: z.string().min(1, '利用日を入力してください。'),
   category: z.enum(categoryCodes),
   amount: z
@@ -172,6 +173,7 @@ export function ExpenseFormPage({ mode }: ExpenseFormPageProps) {
     reset({
       title: detailQuery.data.title,
       items: detailQuery.data.items.map((item) => ({
+        id: item.id,
         expenseDate: item.expenseDate,
         category: item.category,
         amount: item.amount,
@@ -210,6 +212,7 @@ export function ExpenseFormPage({ mode }: ExpenseFormPageProps) {
     const input: ExpenseApplicationInput = {
       title: values.title.trim(),
       items: values.items.map((item) => ({
+        ...(item.id ? { id: item.id } : {}),
         expenseDate: item.expenseDate,
         category: item.category,
         amount: item.amount,

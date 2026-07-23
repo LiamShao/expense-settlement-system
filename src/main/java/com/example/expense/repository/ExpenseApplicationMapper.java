@@ -16,6 +16,8 @@ public interface ExpenseApplicationMapper {
 
     ExpenseApplication findById(@Param("id") Long id);
 
+    ExpenseApplication findByIdForUpdate(@Param("id") Long id);
+
     List<ExpenseApplicationSummaryResponse> search(@Param("condition") ExpenseApplicationSearchRequest condition);
 
     long countSearch(@Param("condition") ExpenseApplicationSearchRequest condition);

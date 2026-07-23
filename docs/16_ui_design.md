@@ -200,7 +200,8 @@ Tablet / narrow desktop (`md` 未満):
 ┌ 明細 ───────────────────────────────────── [＋明細追加] ┐
 │ #1 利用日 [____] Category [____▼] 金額 [________]       │
 │    内容   [____________________________________] [削除] │
-│    領収書 object key [______________________________]   │
+│    領収書 [ファイルを選択] JPEG/PNG/PDF・10 MiB以下    │
+│    tokyo-receipt.pdf 240 KiB [Preview] [置換] [削除]    │
 ├─────────────────────────────────────────────────────────┤
 │                                      合計 ¥13,820       │
 └─────────────────────────────────────────────────────────┘
@@ -209,6 +210,8 @@ Tablet / narrow desktop (`md` 未満):
 
 - 明細は desktop でも横長 table edit にせず、field label が残る row panel とする。
 - Total は明細 section 下部で sticky にせず常時再計算する。
+- 領収書 row は Phase 16A 設計であり未実装。新規作成では application/item 保存後に upload 可能と案内する。
+- Replace/delete は本人かつ `DRAFT` / `RETURNED` の場合だけ表示し、upload progress と file error を row 内へ残す。
 
 ### 7.5 承認待ち
 

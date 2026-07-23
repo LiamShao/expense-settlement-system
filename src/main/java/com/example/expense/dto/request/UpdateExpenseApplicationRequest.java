@@ -15,7 +15,7 @@ public class UpdateExpenseApplicationRequest {
 
     @Valid
     @NotEmpty
-    private List<ExpenseItemRequest> items;
+    private List<UpdateExpenseItemRequest> items;
 
     public String getTitle() {
         return title;
@@ -25,11 +25,11 @@ public class UpdateExpenseApplicationRequest {
         this.title = title;
     }
 
-    public List<ExpenseItemRequest> getItems() {
+    public List<UpdateExpenseItemRequest> getItems() {
         return items;
     }
 
-    public void setItems(List<ExpenseItemRequest> items) {
+    public void setItems(List<UpdateExpenseItemRequest> items) {
         this.items = items;
     }
 }

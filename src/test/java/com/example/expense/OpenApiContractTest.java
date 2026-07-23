@@ -26,6 +26,8 @@ class OpenApiContractTest {
             "/api/expense-applications/{id}/submit",
             "/api/expense-applications/{id}/approve",
             "/api/expense-applications/{id}/return",
+            "/api/expense-applications/{applicationId}/items/{itemId}/receipt",
+            "/api/expense-applications/{applicationId}/items/{itemId}/receipt/content",
             "/api/reviews",
             "/api/reviews/{id}",
             "/api/audit-logs",
@@ -56,7 +58,25 @@ class OpenApiContractTest {
                 .containsEntry("type", "apiKey")
                 .containsEntry("in", "cookie")
                 .containsEntry("name", "SESSION");
-        assertThat(schemas).containsKeys("ErrorResponse", "ValidationErrorDetail");
+        assertThat(schemas).containsKeys(
+                "ErrorResponse",
+                "ValidationErrorDetail",
+                "ReceiptFileApiResponse",
+                "ReceiptFileResponse"
+        );
+
+        Map<String, Object> receiptPath = (Map<String, Object>) paths.get(
+                "/api/expense-applications/{applicationId}/items/{itemId}/receipt"
+        );
+        Set.of("get", "put", "delete").forEach(method ->
+                assertThat((Map<String, Object>) receiptPath.get(method))
+                        .doesNotContainKey("x-implementation-status")
+        );
+        Map<String, Object> receiptContentPath = (Map<String, Object>) paths.get(
+                "/api/expense-applications/{applicationId}/items/{itemId}/receipt/content"
+        );
+        assertThat((Map<String, Object>) receiptContentPath.get("get"))
+                .doesNotContainKey("x-implementation-status");
     }
 
     @Test

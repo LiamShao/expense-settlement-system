@@ -112,6 +112,14 @@
         WHERE id = #{id}
     </select>
 
+    <select id="findByIdForUpdate" resultMap="ExpenseApplicationResultMap">
+        SELECT
+            <include refid="ExpenseApplicationColumns"/>
+        FROM expense_applications
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
     <select id="search" resultMap="ExpenseApplicationSummaryResultMap">
         SELECT
             ea.id,

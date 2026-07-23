@@ -9,7 +9,7 @@ Phase 14 は次の二段階で進める。
 1. 本書と関連文書を整備し、既存 API との整合性と不足 API を確定する。
 2. 設計承認後、不足 API を補完してから React application と frontend test を実装する。
 
-Phase 14B で frontend application を実装済みである。AWS resource、JWT / OIDC、領収書 upload / download は引き続き対象外とする。
+Phase 14B で frontend application、Phase 15 で session authentication を実装済みである。Phase 16A で領収書 upload/download UI を設計済みだが未実装である。AWS resource、JWT / OIDC は引き続き対象外とする。
 
 ## 2. 前提と設計方針
 
@@ -163,7 +163,7 @@ Logout button は確認 dialog を表示し、cancel では session と current 
 
 Header section に ID、件名、status、申請者、合計金額、作成・更新・申請・承認・差戻し日時、承認者、差戻し理由を表示する。null の workflow 項目は非表示または `-` とする。
 
-明細 table は利用日、カテゴリ、金額、内容、領収書 object key を表示する。領収書 API がないため object key は参考情報としてのみ表示し、download link にしない。
+現行の明細 table は利用日、カテゴリ、金額、内容、領収書 object key を表示する。Phase 16 では object key を廃止し、file name、size、upload 日時、preview/download action を表示する。
 
 Action 表示条件:
 
@@ -189,7 +189,7 @@ Action 表示条件:
 | カテゴリ | 必須 | `TRANSPORTATION`、`MEAL`、`SUPPLIES`、`ACCOMMODATION`、`OTHER` |
 | 金額 | 必須 | 1 以上 `999999999999` 以下の整数円。DB の `NUMERIC(12, 0)` と一致させ、小数入力を許可しない。 |
 | 内容 | 必須 | 500 文字以下 |
-| 領収書 object key | 任意 | 500 文字以下。upload 未実装であることを明示する。 |
+| 領収書 | 任意 | 現行は object key。Phase 16 で application/item 保存後の JPEG/PNG/PDF file picker と upload UI に置換する。 |
 | 合計金額 | 自動 | 有効な明細金額を client で表示用に合計。保存値は backend 計算を正とする。 |
 
 作成成功後は返却された ID の詳細へ遷移する。編集画面は詳細取得後、本人かつ編集可能 status であることを確認する。更新成功後は詳細へ戻る。未保存変更がある状態で離脱する場合は確認する。
@@ -234,6 +234,10 @@ ADMIN のみ表示する。
 | 承認待ち検索 | `GET /api/reviews` | 他人の `SUBMITTED` 申請と page metadata を表示する。 |
 | 承認待ち詳細 | `GET /api/reviews/{id}` | 承認判断用のヘッダと明細を表示する。 |
 | 監査ログ検索 | `GET /api/audit-logs` | `data.content` と page metadata を表示する。 |
+| 領収書 metadata | `GET /api/expense-applications/{applicationId}/items/{itemId}/receipt` | File name、size、type、upload 日時を表示する。 |
+| 領収書 upload / replace | `PUT /api/expense-applications/{applicationId}/items/{itemId}/receipt` | Detail を再取得し active metadata を表示する。 |
+| 領収書 delete | `DELETE /api/expense-applications/{applicationId}/items/{itemId}/receipt` | Detail を再取得して未添付表示に戻す。 |
+| 領収書 preview / download | `GET /api/expense-applications/{applicationId}/items/{itemId}/receipt/content` | Blob を一時 object URL で表示/保存し、終了後 revoke する。 |
 
 API client は `ApiResponse<T>` を unwrap し、`success=false` または non-2xx response を共通 error として扱う。request ごとに `AbortSignal` を渡し、画面遷移や検索条件変更で不要になった取得を中止できるようにする。
 
@@ -269,7 +273,7 @@ Toast だけに重要な error を依存させず、form / page 内にも残る 
 - Table は header と caption / accessible name を持たせ、狭い画面では重要項目を維持する。
 - API の text は React の通常描画で escape し、HTML として挿入しない。
 - Credential、password、Authorization header、個人情報を console、analytics、error report に記録しない。
-- `receiptObjectKey` を任意 URL として解釈しない。
+- 現行 `receiptObjectKey` を任意 URL として解釈しない。Phase 16 では storage key 自体を frontend type/API から削除する。
 - Backend の 401 / 403 を最終判断として扱い、UI の可否判定だけを信用しない。
 
 ## 12. Test 方針
@@ -309,7 +313,7 @@ GET /api/reviews/{id}
 - User 一覧 API がないため、申請者検索は当面 user ID 入力となる。select / autocomplete が必要なら参照専用 user API を追加する。
 - 金額は DB の `NUMERIC(12, 0)` に合わせた整数円とし、明細と合計の上限を `999999999999` 円として backend と OpenAPI に定義した。
 - Login credential を安全に永続化できないため、production authentication の刷新は Phase 14 の SPA 公開とは分離して計画する。
-- 領収書 upload / download は API 未実装のため、Phase 14 では object key の表示・入力に限定する。
+- 領収書 upload / download は Phase 14 では object key の表示・入力に限定した。Phase 16A で後続 UI/API を設計済みである。
 
 ## 14. Phase 14 完了条件
 
@@ -330,3 +334,39 @@ Phase 14B で本書の application layout、route、in-memory authentication、A
 Phase 15 で frontend の Basic credential state と `Authorization` header を削除し、Spring Session JDBC の opaque cookie を browser に委ねる方式へ移行した。Application 起動時は `/api/auth/me` の完了まで route guard を loading state とし、有効 session があれば reload 後も元の業務画面を表示する。
 
 API client は unsafe method の直前に `/api/auth/csrf` から token を取得し、module memory のみに保持する。`CSRF_INVALID` では token を破棄して 1 回だけ再取得・再送し、無限 retry は行わない。Logout は server response 成功後に user state、TanStack Query cache、CSRF token を破棄する。
+
+## 17. Phase 16A 領収書 UI 設計
+
+状態: 設計済み・未実装。詳細な backend/storage 契約は [領収書ファイル設計書](17_receipt_file_design.md) を参照する。
+
+### 17.1 Form / detail
+
+- Create では application と item ID を保存した後に upload 可能とし、「まず申請を保存してください」と明示する。
+- Edit form の object key input を file picker に置き換え、`accept` は JPEG/PNG/PDF、client size limit は 10 MiB とする。
+- `accept` と client validation は usability 補助であり、server result を正とする。
+- Existing receipt は sanitized file name、formatted size、uploadedAt、preview/download を表示する。
+- Replace/delete は本人かつ `DRAFT` / `RETURNED` の場合だけ表示し、確認 dialog を使用する。
+- Upload 中は対象 item action を disable し、progress/cancel/retry を提供する。Page 全体の別 item 操作まで不要に block しない。
+- Upload/replace/delete 成功後は detail query と関連 list/review query を invalidate する。
+
+### 17.2 Preview / download
+
+- Content は session cookie を伴う `fetch` で取得し、response Blob から短命な object URL を作る。
+- JPEG/PNG は dialog 内 image、PDF は sandboxed iframe または separate preview view で表示する。
+- Dialog close、route change、component unmount で object URL を必ず revoke する。
+- Storage URL、storage key、file binary を local/session storage、URL query、analytics、console に保存しない。
+- Download は server の sanitized `Content-Disposition` file name を利用する。
+
+### 17.3 Error / accessibility / test
+
+| 状態 | UI |
+|---|---|
+| 400 / 415 | File type/signature を確認して再選択する案内 |
+| 409 | Detail を再取得し、別操作後の最新 receipt を表示 |
+| 413 | 10 MiB 以下へ変更する案内 |
+| 422 | 安全性検査で拒否されたことを一般化して表示 |
+| 503 | Existing receipt を維持し、時間をおいて retry |
+
+File picker は visible label、許可形式/size の helper text、error association を持つ。Progress は視覚表示だけでなく accessible name/value を提供し、preview dialog は keyboard close、focus trap/return を維持する。
+
+Vitest/Testing Library/MSW では選択、boundary validation、progress、replace/delete、Blob preview、URL revoke、全 file error を検証する。Playwright は real DB/local storage で USER upload→submit→APPROVER preview/download→review の workflow を追加する。

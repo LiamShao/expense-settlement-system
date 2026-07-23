@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.expense.repository.ReceiptFileMapper">
+
+    <resultMap id="ReceiptFileResultMap" type="com.example.expense.entity.ReceiptFile">
+        <id property="id" column="id"/>
+        <result property="expenseItemId" column="expense_item_id"/>
+        <result property="storageKey" column="storage_key"/>
+        <result property="originalFileName" column="original_file_name"/>
+        <result property="contentType" column="content_type"/>
+        <result property="sizeBytes" column="size_bytes"/>
+        <result property="sha256Checksum" column="sha256_checksum"/>
+        <result property="state" column="state" javaType="com.example.expense.common.enums.ReceiptFileState"/>
+        <result property="uploadedBy" column="uploaded_by"/>
+        <result property="activatedAt" column="activated_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="ReceiptFileColumns">
+        id,
+        expense_item_id,
+        storage_key,
+        original_file_name,
+        content_type,
+        size_bytes,
+        sha256_checksum,
+        state,
+        uploaded_by,
+        activated_at,
+        created_at,
+        updated_at
+    </sql>
+
+    <select id="findById" resultMap="ReceiptFileResultMap">
+        SELECT
+            <include refid="ReceiptFileColumns"/>
+        FROM receipt_files
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByIdForUpdate" resultMap="ReceiptFileResultMap">
+        SELECT
+            <include refid="ReceiptFileColumns"/>
+        FROM receipt_files
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
+    <select id="findActiveByExpenseItemId" resultMap="ReceiptFileResultMap">
+        SELECT
+            <include refid="ReceiptFileColumns"/>
+        FROM receipt_files
+        WHERE expense_item_id = #{expenseItemId}
+          AND state = 'ACTIVE'
+    </select>
+
+    <select id="findActiveByExpenseItemIdForUpdate" resultMap="ReceiptFileResultMap">
+        SELECT
+            <include refid="ReceiptFileColumns"/>
+        FROM receipt_files
+        WHERE expense_item_id = #{expenseItemId}
+          AND state = 'ACTIVE'
+        FOR UPDATE
+    </select>
+
+    <select id="existsByExpenseItemId" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM receipt_files
+            WHERE expense_item_id = #{expenseItemId}
+        )
+    </select>
+
+    <select id="existsByApplicationId" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM receipt_files rf
+            INNER JOIN expense_items ei ON ei.id = rf.expense_item_id
+            WHERE ei.expense_application_id = #{expenseApplicationId}
+        )
+    </select>
+
+    <select id="findStaleByStates" resultMap="ReceiptFileResultMap">
+        SELECT
+            <include refid="ReceiptFileColumns"/>
+        FROM receipt_files
+        WHERE
+        <choose>
+            <when test="states != null and !states.isEmpty()">
+                state IN
+                <foreach collection="states" item="state" open="(" separator="," close=")">
+                    #{state}
+                </foreach>
+            </when>
+            <otherwise>
+                1 = 0
+            </otherwise>
+        </choose>
+        AND updated_at &lt; #{updatedBefore}
+        ORDER BY updated_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert" parameterType="com.example.expense.entity.ReceiptFile"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO receipt_files (
+            expense_item_id,
+            storage_key,
+            original_file_name,
+            content_type,
+            size_bytes,
+            sha256_checksum,
+            state,
+            uploaded_by,
+            activated_at
+        ) VALUES (
+            #{expenseItemId},
+            #{storageKey},
+            #{originalFileName},
+            #{contentType},
+            #{sizeBytes},
+            #{sha256Checksum},
+            #{state},
+            #{uploadedBy},
+            #{activatedAt}
+        )
+    </insert>
+
+    <update id="markPendingScan">
+        UPDATE receipt_files
+        SET content_type = #{contentType},
+            size_bytes = #{sizeBytes},
+            sha256_checksum = #{sha256Checksum},
+            state = 'PENDING_SCAN',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND state = 'UPLOADING'
+    </update>
+
+    <update id="transitionState">
+        UPDATE receipt_files
+        SET state = #{newState},
+            activated_at = CASE
+                WHEN #{newState} = 'ACTIVE' THEN #{activatedAt}
+                ELSE activated_at
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND state = #{expectedState}
+    </update>
+
+    <delete id="deleteByIdAndState">
+        DELETE FROM receipt_files
+        WHERE id = #{id}
+          AND state = #{state}
+    </delete>
+
+</mapper>

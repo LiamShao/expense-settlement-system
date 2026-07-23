@@ -23,6 +23,12 @@ public class AuditLogService {
     public static final String ACTION_EXPENSE_APPLICATION_SUBMIT = "EXPENSE_APPLICATION_SUBMIT";
     public static final String ACTION_EXPENSE_APPLICATION_APPROVE = "EXPENSE_APPLICATION_APPROVE";
     public static final String ACTION_EXPENSE_APPLICATION_RETURN = "EXPENSE_APPLICATION_RETURN";
+    public static final String TARGET_RECEIPT_FILE = "RECEIPT_FILE";
+    public static final String ACTION_RECEIPT_UPLOAD = "RECEIPT_UPLOAD";
+    public static final String ACTION_RECEIPT_REPLACE = "RECEIPT_REPLACE";
+    public static final String ACTION_RECEIPT_DELETE = "RECEIPT_DELETE";
+    public static final String ACTION_RECEIPT_PREVIEW = "RECEIPT_PREVIEW";
+    public static final String ACTION_RECEIPT_DOWNLOAD = "RECEIPT_DOWNLOAD";
 
     private final AuditLogMapper auditLogMapper;
 

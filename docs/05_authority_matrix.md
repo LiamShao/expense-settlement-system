@@ -31,6 +31,11 @@
 | 他人の経費申請差戻し | 不可 | 可 | 可 | `SUBMITTED` のみ |
 | 自分の経費申請差戻し | 不可 | 不可 | 不可 | 自己差戻し禁止 |
 | 監査ログ参照 | 不可 | 不可 | 可 | ADMIN のみ検索可能 |
+| 自分の領収書 upload / replace / delete | 可 | 可 | 可 | 申請者本人かつ `DRAFT` / `RETURNED` のみ |
+| 自分の領収書 preview / download | 可 | 可 | 可 | 全 status |
+| 他人の承認対象領収書 preview / download | 不可 | 可 | 可 | 他人の `SUBMITTED` review のみ |
+| 他人の管理対象領収書 preview / download | 不可 | 不可 | 可 | ADMIN の全件参照権限に従う |
+| 他人の領収書 upload / replace / delete | 不可 | 不可 | 不可 | ADMIN も代理変更不可 |
 
 ## 3. 補足
 
@@ -38,6 +43,7 @@
 - 承認・差戻しの権限はロールと申請者 ID の両方で判定する。
 - ADMIN は他人の経費申請を参照できるが、更新・削除・申請の代理操作はできない。
 - 監査ログは経費申請の作成、更新、削除、申請、承認、差戻しを対象とする。
+- Phase 16 では領収書の upload、replace、delete、preview、download も監査対象とする。設計済み・未実装。
 
 ## 4. Frontend 表示制御
 
@@ -48,5 +54,7 @@
 | 監査ログ menu | 非表示 | 非表示 | 表示 | 直接 URL でも role guard を行う。 |
 | 編集・削除・申請 button | 本人かつ `DRAFT` / `RETURNED` のみ | 本人かつ `DRAFT` / `RETURNED` のみ | 本人かつ `DRAFT` / `RETURNED` のみ | frontend 表示条件と backend 認可を一致させる。 |
 | 承認・差戻し button | 非表示 | 他人かつ `SUBMITTED` のみ | 他人かつ `SUBMITTED` のみ | 自己操作は禁止する。 |
+| 領収書 upload / replace / delete | 本人かつ `DRAFT` / `RETURNED` のみ | 本人かつ `DRAFT` / `RETURNED` のみ | 本人かつ `DRAFT` / `RETURNED` のみ | Phase 16。 |
+| 領収書 preview / download | 自分の申請 | 自分、または他人の `SUBMITTED` review | 参照可能な全申請 | Phase 16。Backend が最終認可する。 |
 
 Frontend の表示制御は usability のための補助であり、認可判断は必ず backend でも実施する。

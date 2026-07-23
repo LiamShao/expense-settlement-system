@@ -1,5 +1,6 @@
 package com.example.expense.common;
 
+import com.example.expense.service.ReceiptFileException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -7,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Comparator;
@@ -62,6 +65,19 @@ public class GlobalExceptionHandler {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "リクエストの形式が正しくありません。", request);
     }
 
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+        return response(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "UNSUPPORTED_MEDIA_TYPE",
+                "対応していないContent-Typeです。",
+                request
+        );
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(
             ResponseStatusException exception,
@@ -72,6 +88,31 @@ public class GlobalExceptionHandler {
         String message = exception.getReason() == null ? "リクエストを処理できませんでした。" : exception.getReason();
         return ResponseEntity.status(exception.getStatusCode())
                 .body(ErrorResponse.of(code, message, request.getRequestURI()));
+    }
+
+    @ExceptionHandler(ReceiptFileException.class)
+    public ResponseEntity<ErrorResponse> handleReceiptFileException(
+            ReceiptFileException exception,
+            HttpServletRequest request
+    ) {
+        String message = exception.getReason() == null
+                ? "領収書ファイルを処理できませんでした。"
+                : exception.getReason();
+        return ResponseEntity.status(exception.getStatusCode())
+                .body(ErrorResponse.of(exception.getCode(), message, request.getRequestURI()));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException exception,
+            HttpServletRequest request
+    ) {
+        return response(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "FILE_TOO_LARGE",
+                "領収書ファイルは10 MiB以下にしてください。",
+                request
+        );
     }
 
     @ExceptionHandler(AuthenticationException.class)

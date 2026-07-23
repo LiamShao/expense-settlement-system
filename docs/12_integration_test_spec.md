@@ -28,12 +28,14 @@ PostgreSQL Testcontainer
 - 経費申請の登録、検索、状態遷移
 - ロールおよび申請者本人による認可
 - 業務操作に伴う監査ログ登録
+- Phase 16 実装後の領収書 multipart upload、metadata、binary content、private local storage、監査
 
 対象外:
 
 - ブラウザ、Swagger UI、Prism Mock Server
 - 負荷、性能、長時間稼働試験
 - AWS など外部環境へのデプロイ確認
+- 実 AWS S3 と production malware scanner（adapter contract/failure は local test 対象）
 
 ## 3. 実行環境
 
@@ -76,6 +78,17 @@ Flyway seed data の次のユーザーを利用する。
 | IT-REV-001 | `GET /api/reviews`, `/api/reviews/{id}` | APPROVER と USER が承認待ちを参照する | APPROVER は他人の `SUBMITTED` だけを一覧・詳細参照でき、自己申請は 400、USER は 403 となる |
 | IT-AUD-001 | `GET /api/audit-logs` | ADMIN が作成・申請・承認ログを検索する | 対象申請の監査ログを DB から取得できる |
 | IT-AUD-002 | `GET /api/audit-logs` | USER が監査ログを検索する | 403 と共通エラーレスポンスを返す |
+| IT-RCP-000 | Receipt persistence foundation | Flyway V5 適用後、mapper で `UPLOADING` → `PENDING_SCAN` → `ACTIVE` → `PENDING_DELETE` を操作する | Metadata、active lookup、stale lookup、delete が PostgreSQL 制約と一致する |
+| IT-RCP-SVC-001 | Receipt service foundation | 実 PostgreSQL/local storage で service の upload → replace → delete を実行する | Active switch、旧 object/metadata cleanup、audit が一致する |
+| IT-EXP-005 | Expense item reconciliation | Update JSON で既存 item ID、新規 item、削除 item を送る | 既存 ID を維持し update/insert/delete を差分反映する |
+| IT-RCP-001 | Receipt upload / metadata | Owner が CSRF 付き multipart で valid JPEG を upload する | 200、metadata/DB/object/audit が一致し storage key は response にない |
+| IT-RCP-002 | Receipt validation | 10 MiB boundary、超過、unsupported type、signature mismatch、EICAR pattern を upload する | Boundary は成功、各異常は 400/413/415/422 で active file なし |
+| IT-RCP-003 | Receipt authorization | USER/APPROVER/ADMIN が owner/review/admin path で metadata/content を取得する | 設計した role/ownership/status matrix と一致し、拒否時 storage を返さない |
+| IT-RCP-004 | Receipt content | `inline` / `attachment` で JPEG/PNG/PDF を取得する | Binary body、検証済み type、Content-Disposition、`nosniff`、`private, no-store` |
+| IT-RCP-005 | Receipt replace/delete | Editable owner が replace/delete し、submitted application で再試行する | Replace は旧 file を安全に切替、delete cleanup/audit、submitted は 403 |
+| IT-RCP-006 | Receipt failure/recovery | Storage/scan/DB/delete failure と concurrent replace を発生させる | 旧 active 保護、stale state/retry、409/503、orphan を reconciliation 可能 |
+
+`IT-RCP-000` は Phase 16B、`IT-RCP-SVC-001` と `IT-EXP-005` は Phase 16C で実装済みである。Phase 16D では `IT-RCP-001`～`005` の HTTP 契約を実装し、PDF binary/inline、attachment Controller、10 MiB boundary、validation、EICAR、authorization、replace/delete を確認した。JPEG/PNG binary matrix と `IT-RCP-006` の concurrent/DB failure API test は後続 regression で補完する。
 
 ## 6. 判定基準
 

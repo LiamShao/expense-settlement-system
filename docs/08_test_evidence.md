@@ -1,6 +1,6 @@
 # テストエビデンス
 
-Sections 1–4 は Phase 11 時点の baseline evidence である。最新の full regression は Section 9 の Phase 15 evidence を参照する。
+Sections 1–4 は Phase 11 時点の baseline evidence である。Phase 15 evidence は Section 9、最新の Phase 16E full regression は Section 14 を参照する。
 
 ## 1. 実行環境
 
@@ -214,7 +214,117 @@ pnpm e2e
 
 最初の E2E 確認では末尾の ADMIN logout を追加前だったため、その session record だけが idle timeout まで local DB に残った。最終 E2E は全 role を logout し、旧 session の再利用拒否は backend integration test でも確認した。
 
-## 10. Phase 9 実行時確認
+## 10. Phase 16A design / contract verification
+
+実行日: 2026-07-23
+
+| 確認項目 | 結果 |
+|---|---|
+| OpenAPI YAML parse | OK |
+| OpenAPI contract targeted test | 3 tests、0 failures、`BUILD SUCCESSFUL` |
+| Planned/implemented path boundary | Phase 16 の 2 path / 4 operation が `x-implementation-status: planned`、既存 path は strict set で検証 |
+| Prism Mock Server parse/start | OK、20 operations を認識して起動 |
+| Documentation whitespace | `git diff --check` OK |
+
+この Phase 16A checkpoint 時点では backend business code、Flyway V5、receipt storage/API/frontend は未実装だった。後続の Phase 16B result は Section 11 を参照する。
+
+Targeted test command:
+
+```bash
+docker compose run --rm --no-deps --user 1000:0 \
+  -e 'JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dhttps.protocols=TLSv1.2 -Djdk.tls.client.protocols=TLSv1.2' \
+  java-dev ./gradlew --no-daemon --console=plain test \
+  --tests com.example.expense.OpenApiContractTest
+```
+
+## 11. Phase 16B backend foundation verification
+
+最終実行日時: 2026-07-23 16:39–16:40 JST
+
+| 確認項目 | 結果 |
+|---|---|
+| Backend full regression | 61 tests、0 failures、0 errors、0 skipped、`BUILD SUCCESSFUL` |
+| Flyway V5 / PostgreSQL | `receipt_files` migration 適用成功 |
+| Receipt lifecycle mapper | `UPLOADING` → `PENDING_SCAN` → `ACTIVE` → `PENDING_DELETE`、active/stale lookup、delete を実 PostgreSQL で確認 |
+| Local storage | Streaming put/open/delete、root escape/absolute/backslash key、overwrite、symlink、途中失敗 cleanup を確認 |
+| Scanner | Clean/EICAR 判定、stream failure と未設定時の fail closed を確認 |
+| OpenAPI regression | Implemented/planned path boundary を含む既存 3 contract tests 成功 |
+| Existing regression | Authentication、CSRF/session、expense workflow、review、audit tests を含む全 backend suite 成功 |
+
+Full regression command:
+
+```bash
+docker compose run --rm --no-deps --user 1000:0 \
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
+  -e 'JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dhttps.protocols=TLSv1.2 -Djdk.tls.client.protocols=TLSv1.2' \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  java-dev ./gradlew --no-daemon --console=plain test --rerun-tasks
+```
+
+この時点では Receipt Service/API/S3/frontend は未実装だった。後続の Phase 16C result は Section 12 を参照する。本更新では local persistent PostgreSQL volume と business data を変更していない。
+
+## 12. Phase 16C business service verification
+
+最終実行日時: backend 2026-07-23 17:22–17:23 JST、frontend 17:16 JST
+
+| 確認項目 | 結果 |
+|---|---|
+| Backend full regression | 86 tests、0 failures、0 errors、0 skipped、`BUILD SUCCESSFUL` |
+| Expense item reconciliation | Existing ID update、新規 insert、削除、別 application ID/重複、receipt metadata 付き削除保護を確認 |
+| Receipt validation | File name sanitize、extension/Content-Type/magic bytes、empty/10 MiB、SHA-256 を確認 |
+| Receipt authorization/service | Owner/status write、APPROVER/ADMIN read boundary、upload/replace/delete、旧 active 保護、content access audit を確認 |
+| Cleanup/recovery | `PENDING_DELETE` claim、object/metadata delete、storage failure 時の metadata 維持、stale cleanup foundation を確認 |
+| PostgreSQL/local storage integration | 実 DB/object で upload → replace → delete、旧 object/metadata cleanup、audit を確認 |
+| Frontend regression | ESLint、TypeScript typecheck、36 Vitest tests、Vite production build 成功 |
+| Static/workspace check | `git diff --check` 成功。Testcontainer/local test storage は cleanup 済み |
+
+Backend full regression は Section 11 と同じ Docker/Testcontainers command を `--rerun-tasks` 付きで実行した。Frontend は `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm build` を実行した。
+
+Phase 16C checkpoint 時点では Controller が未実装だったため、multipart/binary HTTP response、custom file error code、response header、receipt frontend/E2E は未試験だった。後続結果は Section 13 を参照する。
+
+## 13. Phase 16D HTTP API verification
+
+最終実行日時: backend 2026-07-23 17:42–17:43 JST、frontend 17:36 JST
+
+| 確認項目 | 結果 |
+|---|---|
+| Backend full regression | 101 tests、0 failures、0 errors、0 skipped、`BUILD SUCCESSFUL` |
+| Multipart / CSRF | Session cookie と CSRF header を使う PUT upload、CSRF 不足拒否を確認 |
+| Metadata / privacy | Public metadata を返し、storage key/path を JSON に含めないことを確認 |
+| Binary content | PDF body、検証済み Content-Type/Length、RFC 5987 filename、inline/attachment、`nosniff`、`private, no-store` を確認 |
+| File error contract | `INVALID_FILE`、`FILE_TOO_LARGE`、`UNSUPPORTED_MEDIA_TYPE`、`MALWARE_DETECTED` の status/code を real API で確認 |
+| Size / malware | 10 MiB boundary 成功、1 byte 超過 413、EICAR 422 と旧 active receipt 維持を確認 |
+| Authorization | Owner、DRAFT の APPROVER 拒否、ADMIN 管理参照、SUBMITTED の APPROVER review、submitted delete 拒否を確認 |
+| Delete / audit | API delete 後の object/metadata 非表示化と upload/preview/delete audit を確認 |
+| OpenAPI | v0.6、2 paths / 4 receipt operations を implemented contract として contract test 成功 |
+| Frontend regression | ESLint、TypeScript typecheck、36 Vitest tests、Vite production build 成功 |
+| Static/workspace check | `git diff --check` 成功。Testcontainer/local test storage は cleanup 済み |
+
+Backend full regression は Docker/Testcontainers command を `--rerun-tasks` 付きで実行した。Frontend は `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm build` を実行した。
+
+Frontend receipt UI、JPEG/PNG binary API matrix、concurrent replace/DB failure の HTTP-level test、real browser receipt E2E は未実装または未試験である。S3 adapter の後続結果は Section 14 を参照する。Local persistent PostgreSQL volume と business data は変更していない。
+
+## 14. Phase 16E private S3 adapter verification
+
+最終実行日時: 2026-07-23 18:04–18:05 JST
+
+| 確認項目 | 結果 |
+|---|---|
+| Backend full regression | 113 tests、0 failures、0 errors、0 skipped、`BUILD SUCCESSFUL` |
+| S3 put contract | Configured bucket、application-generated key、verified Content-Type、exact Content-Length、SSE-S3（AES256）、`If-None-Match: *`、ACL 未指定を capture して確認 |
+| S3 read/delete contract | `getObject` stream、`headObject` exists/404、`deleteObject` の bucket/key request を mock client で確認 |
+| Error/privacy | S3 404 を storage not-found、SDK client error を generic storage failure へ変換し、公開 message に bucket/key/SDK detail を含めないことを確認 |
+| Input boundary | Traversal/non-receipt key、invalid length/type を SDK 呼出前に拒否 |
+| Conditional configuration | `type=s3` のときだけ S3 client/adapter を構築し、default mode は AWS client を構築しない。Bucket 未設定は startup fail-fast |
+| Local contract regression | Exact content length 不一致時に final/temporary object を残さない |
+| AWS usage | Mockito `S3Client` のみを利用。AWS account、credential、bucket、endpoint、network request、resource 作成、費用発生なし |
+| Container cleanup | Testcontainers resource と project PostgreSQL を停止。実行後は無関係の `stocklens-postgres` のみ稼働 |
+
+Full regression は Docker socket と `TESTCONTAINERS_HOST_OVERRIDE` を指定し、`--rerun-tasks` 付きで実行した。最初の socket mount なしの試行は Testcontainers が `/var/run/docker.sock` を検出できず integration test initialization で失敗したが、同じ source を正式 command で再実行して上記 113 tests の成功を確認した。Local persistent PostgreSQL volume と business data は変更していない。
+
+実 S3 endpoint に対する IAM、Block Public Access、Bucket owner enforced、versioning、HTTPS-only policy、network、multipart/timeout/retry の検証は Phase 17 IaC / Phase 18 approved environment まで未実施である。
+
+## 15. Phase 9 実行時確認
 
 | 確認項目 | 結果 |
 |---|---|
@@ -226,6 +336,6 @@ pnpm e2e
 | Mock 未認証リクエスト | 401 Unauthorized |
 | Mock Basic Auth リクエスト | 200 OK |
 
-## 11. 補足
+## 16. 補足
 
 本エビデンスは自動テスト実行結果の要約である。SIer 形式の詳細エビデンスとして提出する場合は、対象テスト、入力値、期待値、実行結果、ログまたはスクリーンショットをケース単位で追加する。
